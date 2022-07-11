@@ -2,7 +2,8 @@ import dask
 import dask.dataframe as dd
 from dask.delayed import delayed
 import pandas as pd
-from functools import cached_property
+import numpy as np
+from functools import cached_property, reduce
 from pathlib import Path
 
 
@@ -67,62 +68,9 @@ class DataSet:
         if verify_integrity:
             self.validate()
 
-    @cached_property
-    def nrows(self):
-        shapes = self.client.compute((x.shape[0] for _, x in self))
-        if isinstance(shapes, tuple): shapes = shapes[0]
-        return sum(shapes)
-
-    @property
-    def ncols(self):
-        return self.columns.shape[0]
-
-    @property
-    def shape(self):
-        return len(self), self.ncols
-
-    @property
-    def fshape(self):
-        return self.nrows, self.ncols
-
-    @cached_property
-    def _shapes(self):
-        shapes = self.client.compute({s: d.shape for s, d in self})
-        if isinstance(shapes, tuple): shapes = shapes[0]
-        return shapes
-
-    def _explode(self, ranges):
-        ranges = pd.Series(ranges).explode()
-        assert ranges.index.value_counts().eq(2).all()
-        return pd.DataFrame({0: ranges[::2], 1: ranges[1::2]})
-
-    @property
-    def shapes(self):
-        return self._explode(self._shapes)
-
-    @cached_property
-    def index_ranges(self):
-        ranges = self.client.compute({s: (self.get(s).index.min(), self.get(s).index.max())
-                                      for s in self.symbols})
-        if isinstance(ranges, tuple): ranges = ranges[0]
-        return self._explode(ranges)
-
-    @property
-    def symbols(self):
-        return pd.Index(self.data.keys())
-
-    @property
-    def columns(self):
-        first = self.data[self.symbols[0]]
-        cols = first.columns
-        cols = self.client.compute(cols)
-        if isinstance(cols, tuple): cols = cols[0]
-        return cols
-
     def _all_equal(self, axis):
         assert axis in (0, 1), "invalid axis argument"
-        if not len(set(s[axis] for s in self._shapes.values())) == 1:
-            return False
+        if self.shapes[axis].nunique() > 1: return False
 
         which = "index" if not axis else "columns"
         ix = getattr(self.get(self.symbols[0]), which)
@@ -136,13 +84,52 @@ class DataSet:
         if isinstance(equals, tuple): return equals[0]
         return equals
 
+    @cached_property
+    def common_columns(self):
+        return reduce(lambda p,c: p[p.isin(c)],
+                      (v.columns for v in self.data.values()))
+
+    @property
+    def all_columns(self):
+        return pd.Series({k: v.columns.tolist() for k, v in self.data.items()})
+
     @property
     def all_columns_equal(self):
         return self._all_equal(1)
 
+    def _explode(self, ranges):
+        ranges = pd.Series(ranges).explode()
+        assert ranges.index.value_counts().eq(2).all()
+        return pd.DataFrame({0: ranges[::2], 1: ranges[1::2]})
+
+    @cached_property
+    def index_ranges(self):
+        ranges = self.client.compute({s: (self.get(s).index.min(), self.get(s).index.max())
+                                      for s in self.symbols})
+        if isinstance(ranges, tuple): ranges = ranges[0]
+        return self._explode(ranges)
+
     @property
     def all_indexes_equal(self):
         return self._all_equal(0)
+
+    @property
+    def shape(self):
+        return len(self), len(self.common_columns)
+
+    @property
+    def fshape(self):
+        return self.shapes[0].sum(), len(self.common_columns)
+
+    @cached_property
+    def shapes(self):
+        shapes = self.client.compute({s: d.shape for s, d in self})
+        if isinstance(shapes, tuple): shapes = shapes[0]
+        return self._explode(shapes).astype(np.int64)
+
+    @property
+    def symbols(self):
+        return pd.Index(self.data.keys())
 
     def apply(self, func, *args, pass_sym= False, **kwargs):
         func = delayed(func)
@@ -166,7 +153,7 @@ class DataSet:
     def __getitem__(self, item):
         if not pd.api.types.is_list_like(item): item = [item]
         item = list(item)
-        assert pd.Index(item).isin(self.columns).all()
+        assert pd.Index(item).isin(self.common_columns).all()
         return self(lambda d: d[item])
 
     def __setitem__(self, key, value):
@@ -244,11 +231,6 @@ class DataSet:
         try: full = dd.from_delayed(data)
         except TypeError: full = dd.concat(data)
         return full
-        # reset_index resets it per partition, not what I thought
-        # if full.index.name in full.columns:
-        #     warnings.warn("Not resetting index because a column with its name already exists")
-        #     return full
-        # return full.reset_index(drop= False)
 
     def ffill(self): return self(lambda d: d.ffill())
 
@@ -320,8 +302,6 @@ class DataSet:
 
     def describe(self):
         results = self.client.compute({s: d.describe() for s, d in self})
-
-
 
 
 
