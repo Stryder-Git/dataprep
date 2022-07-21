@@ -6,6 +6,8 @@ import numpy as np
 from functools import cached_property, reduce
 from pathlib import Path
 
+default_rng = np.random.default_rng()
+is_list_like = pd.api.types.is_list_like
 
 class DataSet:
 
@@ -151,7 +153,7 @@ class DataSet:
         return self.data[sym]
 
     def __getitem__(self, item):
-        if not pd.api.types.is_list_like(item): item = [item]
+        if not is_list_like(item): item = [item]
         item = list(item)
         assert pd.Index(item).isin(self.common_columns).all()
         return self(lambda d: d[item])
@@ -163,7 +165,7 @@ class DataSet:
             assert len(self) == len(value)
             assert (self.symbols.sort_values() == value.symbols.sort_values()).all()
 
-        if not isinstance(key, (list, tuple, pd.Index)): key = [key]
+        if not is_list_like(key): key = [key]
 
         @delayed
         def _set(d, k, v):
@@ -179,29 +181,28 @@ class DataSet:
         if isinstance(hd, pd.DataFrame): return hd
         return hd.compute()
 
-    def sample(self, n= 1000, with_sym= False):
-        n = min(n, self.nrows)
-        ks = self.data.keys()
-        rows = [self.get(s, wrap=True).fshape[0] for s in ks]
+    def sample(self, n= 1000, with_sym= False, shuffle= True, generator= default_rng):
+        rows = self.shapes[0]
         cmsum = np.cumsum(rows)
+        nrows = cmsum[-1]
+        n = min(n, nrows)
 
-        chose = npr.choice(np.sum(rows), size= (n,), replace= False)
-        chose.sort()
+        chose = np.sort(generator.choice(nrows, size= (n,), replace= False))
         split = np.split(chose, np.searchsorted(chose, cmsum))
 
-        taken = 0
         sample = dict()
-        for sym, r, ixs in zip(ks, rows, split):
-            sample[sym] = self.data[sym].iloc[ixs - taken]
-            taken += r
+        for sym, r, ixs in zip(rows.keys(), rows, split):
+            sample[sym] = self.data[sym].iloc[ixs]
+            ixs -= r
 
-        sample = self.client.compute(sample)
         if isinstance(sample, tuple): sample = sample[0]
-
         sample = pd.concat(sample)
-        ixs = np.arange(n)
-        npr.shuffle(ixs)
-        sample = sample.iloc[ixs]
+
+        if shuffle:
+            ixs = np.arange(n)
+            generator.shuffle(ixs)
+            sample = sample.iloc[ixs]
+
         if with_sym: return sample
         else: return sample.droplevel(0, axis= 0)
 
