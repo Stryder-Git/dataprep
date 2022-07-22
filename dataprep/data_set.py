@@ -12,22 +12,16 @@ import dataprep._delays as _ds
 default_rng = np.random.default_rng()
 is_list_like = pd.api.types.is_list_like
 
-class DataSet:
-
+class _DataBase:
     client = dask
 
-    def validate(self):
-        first = self.data[self.symbols[0]]
-        cols = first.columns
-        for sym, ddf in self:
-            try:
-                assert self.client.compute((cols == ddf.columns).all()), "Some columns don't match"
-            except AttributeError as e:
-                raise ValueError("Not all are same type") from e
-            cols = ddf.columns
+    def _explode(self, ranges):
+        ranges = pd.Series(ranges).explode()
+        assert ranges.index.value_counts().eq(2).all()
+        return pd.DataFrame({0: ranges[::2], 1: ranges[1::2]})
 
     @classmethod
-    def __new(cls, *files, name= None, args= None, kwargs= None, self= None):
+    def _new(cls, *files, name= None, args= None, kwargs= None, self= None):
         self = super().__new__(cls) if self is None else self
         if args is None: args = ()
         if kwargs is None: kwargs = {}
@@ -69,54 +63,7 @@ class DataSet:
         return self
 
     def __init__(self, *files, name=None, args=None, kwargs=None, verify_integrity= False):
-        self.__new(*files, name=name, args=args, kwargs=kwargs, self= self)
-        if verify_integrity:
-            self.validate()
-
-    def _all_equal(self, axis):
-        assert axis in (0, 1), "invalid axis argument"
-        if self.shapes[axis].nunique() > 1: return False
-
-        which = "index" if not axis else "columns"
-        ix = getattr(self.get(self.symbols[0]), which)
-        equals = ix == ix
-        for s, d in self:
-            _ix = getattr(d, which)
-            equals &= _ix == ix
-            ix = _ix
-
-        equals = self.client.compute(equals.all())
-        if isinstance(equals, tuple): return equals[0]
-        return equals
-
-    @cached_property
-    def common_columns(self):
-        return reduce(lambda p,c: p[p.isin(c)],
-                      (v.columns for v in self.data.values()))
-
-    @property
-    def all_columns(self):
-        return pd.Series({k: v.columns.tolist() for k, v in self.data.items()})
-
-    @property
-    def all_columns_equal(self):
-        return self._all_equal(1)
-
-    def _explode(self, ranges):
-        ranges = pd.Series(ranges).explode()
-        assert ranges.index.value_counts().eq(2).all()
-        return pd.DataFrame({0: ranges[::2], 1: ranges[1::2]})
-
-    @cached_property
-    def index_ranges(self):
-        ranges = self.client.compute({s: (self.get(s).index.min(), self.get(s).index.max())
-                                      for s in self.symbols})
-        if isinstance(ranges, tuple): ranges = ranges[0]
-        return self._explode(ranges)
-
-    @property
-    def all_indexes_equal(self):
-        return self._all_equal(0)
+        self._new(*files, name=name, args=args, kwargs=kwargs, self= self)
 
     @property
     def shape(self):
@@ -144,7 +91,7 @@ class DataSet:
     def persist(self):
         pers = self.client.persist(self.data)
         if isinstance(pers, tuple): pers = pers[0]
-        return self.__new(pers)
+        return self._new(pers)
 
     def compute(self):
         comped = self.client.compute(self.data)
@@ -152,32 +99,11 @@ class DataSet:
         return pd.concat(comped.result())
 
     def get(self, sym, wrap= False):
-        if wrap: return self.__new({sym: self.data[sym]})
+        if wrap: return self._new({sym: self.data[sym]})
         return self.data[sym]
 
-    def __getitem__(self, item):
-        if not is_list_like(item): item = [item]
-        item = list(item)
-        assert pd.Index(item).isin(self.common_columns).all()
-        return self(lambda d: d[item])
-
-    def __setitem__(self, key, value):
-        if not isinstance(value, DataSet):
-            raise NotImplementedError("So far only possible with DataSet")
-        else:
-            assert len(self) == len(value)
-            assert (self.symbols.sort_values() == value.symbols.sort_values()).all()
-
-        if not is_list_like(key): key = [key]
-
-        @delayed
-        def _set(d, k, v):
-            d[k] = v
-            return d
-
-        for s in self.symbols:
-            other = value.get(s)
-            self.data[s] = _set(self.data[s], key, other[key])
+    def select(self, symbols):
+        return self._new({s: self.get(s) for s in symbols})
 
     def head(self, n= 5, i= 0):
         hd = self.data[self.symbols[i]].head(n)
@@ -209,6 +135,80 @@ class DataSet:
         if with_sym: return sample
         else: return sample.droplevel(0, axis= 0)
 
+    def copy(self, deep=False):
+        if deep:
+            new = {s: d.copy() for s, d in self}
+        else:
+            new = self.data.copy()
+        return self._new(new)
+
+    def drop_empties(self):
+        shapes = self._shapes
+        return self._new({s: self.get(s) for s, shape in shapes.items() if shape[0]})
+
+    def drop(self, symbols):
+        syms = self.symbols
+        return self.select(syms[~syms.isin(symbols)])
+
+    def __len__(self): return len(self.data)
+
+    def __iter__(self): return iter(self.data.items())
+
+    def __call__(self, func, *args, n= None, pass_sym= False, **kwargs):
+        def _func(*args, **kwargs):
+            res = func(*args, **kwargs)
+            if res.ndim == 1:
+                if not n is None: res.name = n
+                elif res.name is None: res.name = func.__name__
+                res = res.to_frame()
+            return res
+
+        return self._new(self.apply(_func, *args, pass_sym= pass_sym, **kwargs))
+
+    def __repr__(self):
+        syms = self.symbols[:3]
+        dfs = {}
+        for sym in syms:
+            dfs[sym] = self.get(sym).head(2)
+
+        dfs = self.client.compute(dfs)
+        if isinstance(dfs, tuple): dfs = dfs[0]
+        return "\n" + repr(pd.concat(dfs))
+
+
+class Data(_DataBase):
+    pass
+
+class DataSeries(Data):
+    _axes = (0,)
+
+    def _all_equal(self, axis):
+        assert axis in self._axes, "invalid axis argument"
+        if self.shapes[axis].nunique() > 1: return False
+
+        which = "index" if not axis else "columns"
+        ix = getattr(self.get(self.symbols[0]), which)
+        equals = ix == ix
+        for s, d in self:
+            _ix = getattr(d, which)
+            equals &= _ix == ix
+            ix = _ix
+
+        equals = self.client.compute(equals.all())
+        if isinstance(equals, tuple): return equals[0]
+        return equals
+
+    @cached_property
+    def index_ranges(self):
+        ranges = self.client.compute({s: (self.get(s).index.min(), self.get(s).index.max())
+                                      for s in self.symbols})
+        if isinstance(ranges, tuple): ranges = ranges[0]
+        return self._explode(ranges)
+
+    @property
+    def all_indexes_equal(self):
+        return self._all_equal(0)
+
     def match(self, data, same_syms= True, name= None, **kwargs):
         """
         Will match each dask.dataframe in self with the index of the
@@ -227,7 +227,7 @@ class DataSet:
             if adapted.ndim == 1: return adapted.to_frame(name)
             return adapted
 
-        return self.__new({s: _adj(data.get(s), d) for s, d in self})
+        return self._new({s: _adj(data.get(s), d) for s, d in self})
 
     def join(self, with_symbols= True):
         if with_symbols: data = [d.assign(symbol= s) for s, d in self]
@@ -237,47 +237,6 @@ class DataSet:
         return full
 
     def ffill(self): return self(lambda d: d.ffill())
-
-    def __len__(self): return len(self.data)
-
-    def __iter__(self): return iter(self.data.items())
-
-    def __call__(self, func, *args, n= None, pass_sym= False, **kwargs):
-        def _func(*args, **kwargs):
-            res = func(*args, **kwargs)
-            if res.ndim == 1:
-                if not n is None: res.name = n
-                elif res.name is None: res.name = func.__name__
-                res = res.to_frame()
-            return res
-
-        return self.__new(self.apply(_func, *args, pass_sym= pass_sym, **kwargs))
-
-    def copy(self, deep= False):
-        if deep: new = {s: d.copy() for s, d in self}
-        else: new = self.data.copy()
-        return self.__new(new)
-
-    def __repr__(self):
-        syms = self.symbols[:3]
-        dfs = {}
-        for sym in syms:
-            dfs[sym] = self.get(sym).head(2)
-
-        dfs = self.client.compute(dfs)
-        if isinstance(dfs, tuple): dfs = dfs[0]
-        return "\n" + repr(pd.concat(dfs))
-
-    def drop_empties(self):
-        shapes = self._shapes
-        return self.__new({s: self.get(s) for s, shape in shapes.items() if shape[0]})
-
-    def select(self, symbols):
-        return self.__new({s: self.get(s) for s in symbols})
-
-    def drop(self, symbols):
-        syms = self.symbols
-        return self.select(syms[~syms.isin(symbols)])
 
     def show_issues(self, absolute= True):
         """
@@ -318,7 +277,7 @@ class DataSet:
             results[s] = _ds.missing_sessions(d.index,
                                               ic.timex(frm=rs[0], to=rs[1]),
                                               sessions)
-        return self.__new(results)
+        return self._new(results)
 
     def incomplete_sessions(self, schedule, tf):
         ranges = self.index_ranges
@@ -331,7 +290,58 @@ class DataSet:
             results[s] = _ds.incomplete_sessions(d.index,
                                               ic.timex(frm=rs[0], to=rs[1]),
                                               sessions)
-        return self.__new(results)
+        return self._new(results)
+
+
+class DataSet(DataSeries):
+    _axes = (0, 1)
+
+    def validate(self):
+        first = self.data[self.symbols[0]]
+        cols = first.columns
+        for sym, ddf in self:
+            try:
+                assert self.client.compute((cols == ddf.columns).all()), "Some columns don't match"
+            except AttributeError as e:
+                raise ValueError("Not all are same type") from e
+            cols = ddf.columns
+
+    @cached_property
+    def common_columns(self):
+        return reduce(lambda p,c: p[p.isin(c)],
+                      (v.columns for v in self.data.values()))
+
+    @property
+    def all_columns(self):
+        return pd.Series({k: v.columns.tolist() for k, v in self.data.items()})
+
+    @property
+    def all_columns_equal(self):
+        return self._all_equal(1)
+
+    def __getitem__(self, item):
+        if not is_list_like(item): item = [item]
+        item = list(item)
+        assert pd.Index(item).isin(self.common_columns).all()
+        return self(lambda d: d[item])
+
+    def __setitem__(self, key, value):
+        if not isinstance(value, DataSet):
+            raise NotImplementedError("So far only possible with DataSet")
+        else:
+            assert len(self) == len(value)
+            assert (self.symbols.sort_values() == value.symbols.sort_values()).all()
+
+        if not is_list_like(key): key = [key]
+
+        @delayed
+        def _set(d, k, v):
+            d[k] = v
+            return d
+
+        for s in self.symbols:
+            other = value.get(s)
+            self.data[s] = _set(self.data[s], key, other[key])
 
 
     """
