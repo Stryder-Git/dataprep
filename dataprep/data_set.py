@@ -170,7 +170,7 @@ class Data(_DataBase):
         rp = {s: self.get(s) for s in self.symbols[:3]}
         return repr(rp)
 
-class DataSeries(Data):
+class DataSeries(_DataBase):
     _axes = (0,)
     _frame = False
 
@@ -299,6 +299,7 @@ class DataSeries(Data):
 
 class DataSet(DataSeries):
     _axes = (0, 1)
+    _frame = True
 
     def __init__(self, data, same_cols= False):
         self.data = data
