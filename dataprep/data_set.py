@@ -35,7 +35,7 @@ class DataSet:
         if isinstance(files[0], dict):
             self.data = files[0].copy()
             d = self.get(self.symbols[0])
-            if isinstance(d, (pd.DataFrame, pd.Series)):
+            if isinstance(d, (pd.DataFrame, pd.Series, pd.Index)):
                 if not kwargs: kwargs["npartitions"] = 1
                 if d.ndim == 1:
                     d = {s: dd.from_pandas(d.to_frame(name), **kwargs) for s, d in self}
@@ -310,9 +310,14 @@ class DataSet:
     def missing_sessions(self, schedule, tf):
         ranges = self.index_ranges
         ic = IndexCalculator(schedule, tf)
+        sessions = ic.sessions
 
-
-
+        results = {}
+        for s, d in self:
+            rs = ranges.loc[s]
+            results[s] = _ds.missing_sessions(d.index,
+                                              ic.timex(frm=rs[0], to=rs[1]),
+                                              sessions)
         return self.__new(results)
 
 

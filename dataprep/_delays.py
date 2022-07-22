@@ -27,7 +27,7 @@ def missing_indexes(self):
     return nas.index.to_series().reset_index(drop=True)
 
 @delayed
-def missing_sessions(dfix, ix, tf):
+def missing_sessions(dfix, ix, sessions):
     """
     reindex   (get none where missing)
     groupby sessions, count (to get the number of values in each session)
@@ -40,9 +40,9 @@ def missing_sessions(dfix, ix, tf):
     :return:
     """
     redfix = dfix.to_series().reindex(ix)
-    sessions = _sessions(redfix, tf)
-    missing = redfix.groupby(sessions).transform("count").eq(0)
-    return dfix[missing].groupby(sessions).first().index
+    redfix = redfix.where(redfix.isin(sessions)).ffill()
+    counts = redfix.groupby(redfix).count()
+    return counts[counts.eq(0)]
 
 
 def incomplete_sessions(self):
