@@ -2,10 +2,10 @@ import pytest
 import pandas as pd
 from pandas.testing import assert_frame_equal
 import numpy as np
-
 import pandas_market_calendars as mcal
+from dataprep import Data, DataSet
 
-from dataprep import DataSet
+import dp_tests.utils as u
 
 
 """
@@ -110,27 +110,32 @@ sched = pd.DataFrame(dict(
     market_close = ['2000-01-03 08:00:00', '2000-01-04 08:00:00', '2000-01-05 08:00:00', '2000-01-06 04:00:00', '2000-01-07 08:00:00'],
 ), dtype= "datetime64[ns, UTC]")
 
-
-price_data_missing = dict(
+@pytest.mark.parametrize("data, expected", [
+    (dict(
     A = pd.DataFrame(index= ix[ix.normalize()!=pd.Timestamp("2000-01-06", tz= "UTC")]),
     B = pd.DataFrame(index= ix[ix.normalize()!=pd.Timestamp("2000-01-03", tz= "UTC")]), # shouldn't be considered missing (because it's the first date)
     C = pd.DataFrame(index= ix[ix.normalize()!=pd.Timestamp("2000-01-05", tz= "UTC")])
-)
-
-@pytest.mark.parametrize("data", [price_data_missing,])
-def test_missing_sessions(data):
+    ), {'A': pd.DatetimeIndex(['2000-01-06 02:00:00+00:00'], dtype='datetime64[ns, UTC]', freq=None),
+        'B': pd.DatetimeIndex([], dtype='datetime64[ns, UTC]', freq=None),
+        'C': pd.DatetimeIndex(['2000-01-05 02:00:00+00:00', '2000-01-05 05:00:00+00:00'], dtype='datetime64[ns, UTC]', freq=None)})
+])
+def test_missing_sessions(data, expected):
     ds = DataSet(data)
-    print(ds.missing_sessions(sched, "1.5H").compute())
-    pytest.fail()
+    missing = ds.missing_sessions(sched, "1.5H")
+
+    assert isinstance(missing, Data) and not isinstance(missing, DataSet)
+    assert u.dict_same(missing.compute(), expected)
 
 
-
-
-@pytest.mark.parametrize("data", [price_data_missing,])
-def test_incomplete_sessions(data):
-    ds = DataSet(data)
-    print(ds.incomplete_sessions(sched, "1.5H").compute())
-    pytest.fail()
+# @pytest.mark.parametrize("data, expected", [
+#     (dict(
+#
+#     )),
+#     ])
+# def test_incomplete_sessions(data):
+#     ds = DataSet(data)
+#     print(ds.incomplete_sessions(sched, "1.5H").compute())
+#     pytest.fail()
 
 
 
