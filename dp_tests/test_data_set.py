@@ -97,12 +97,8 @@ def test_dataset_properties(data):
     assert list(ds.symbols) == list(data.keys())
 
 
-# @pytest.mark.parametrize("date", test_data)
-# def test_sample(data):
-#     ds = DataSet(data)
-#
-#
-
+def test_missing_sessions(data):
+    ds = DataSet(data)
 
 
 

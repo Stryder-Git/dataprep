@@ -5,6 +5,9 @@ import pandas as pd
 import numpy as np
 from functools import cached_property, reduce
 from pathlib import Path
+from index_calculator import IndexCalculator
+
+import dataprep._delays as _ds
 
 default_rng = np.random.default_rng()
 is_list_like = pd.api.types.is_list_like
@@ -304,7 +307,25 @@ class DataSet:
     def describe(self):
         results = self.client.compute({s: d.describe() for s, d in self})
 
+    def missing_sessions(self, schedule, tf):
+        ranges = self.index_ranges
+        ic = IndexCalculator(schedule, tf)
 
+
+
+        return self.__new(results)
+
+
+    """
+    what do I want
+        missing sessions
+        incomplete sessions
+        missing indexes
+        
+        padding of incomplete
+        padding of missing
+    
+    """
 
 
     """
