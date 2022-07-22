@@ -12,58 +12,54 @@ import dataprep._delays as _ds
 default_rng = np.random.default_rng()
 is_list_like = pd.api.types.is_list_like
 
+def from_pandas(data, name= None, **kwargs):
+    """
+    Assumes that all values of `data` are of the same type
+
+    :param data: dict containing pandas object
+    :param kwargs: passed to dd.from_pandas constructor
+    :return:
+    """
+    if args is None: args = ()
+    if kwargs is None: kwargs = {}
+    d = data[list(data.keys())[0]]
+    if not kwargs: kwargs["npartitions"] = 1
+
+    if isinstance(d, pd.DataFrame):
+        cls = DataSet
+    elif isinstance(d, pd.Series):
+        cls = DataSeries
+    else:
+        raise ValueError("Needs to be pandas object")
+
+    return cls({s: dd.from_pandas(d, **kwargs) for s, d in data.items()})
+
+def from_files(*files, name= None):
+    """
+    assumes that all files are of same type: .csv, else parquet
+
+    :param files:
+    :param name:
+    :return:
+    """
+    if name is None: name = lambda p: Path(p).parts[-1].split(".")[0]
+
+    syms = list(map(name, files))
+    assert len(set(syms)) == len(files)
+    reader = dd.read_csv if files[0].endswith(".csv") else dd.read_parquet
+    return DataSet({s: reader(f, *args, **kwargs) for s, f in zip(syms, files)})
+
+
 class _DataBase:
     client = dask
+
+    def __init__(self, data):
+        self.data = data
 
     def _explode(self, ranges):
         ranges = pd.Series(ranges).explode()
         assert ranges.index.value_counts().eq(2).all()
         return pd.DataFrame({0: ranges[::2], 1: ranges[1::2]})
-
-    @classmethod
-    def _new(cls, *files, name= None, args= None, kwargs= None, self= None):
-        self = super().__new__(cls) if self is None else self
-        if args is None: args = ()
-        if kwargs is None: kwargs = {}
-
-        if isinstance(files[0], dict):
-            self.data = files[0].copy()
-            d = self.get(self.symbols[0])
-            if isinstance(d, (pd.DataFrame, pd.Series, pd.Index)):
-                if not kwargs: kwargs["npartitions"] = 1
-                if d.ndim == 1:
-                    d = {s: dd.from_pandas(d.to_frame(name), **kwargs) for s, d in self}
-                else:
-                    d = {s: dd.from_pandas(d, **kwargs) for s, d in self}
-                self.data = d
-
-        elif isinstance(files[0], pd.DataFrame):
-            df = files[0]
-            assert df.columns.nlevels <= 2 and df.index.nlevels == 1
-            if not kwargs: kwargs["npartitions"] = 1
-
-            data = {}
-            for sym in df.columns.get_level_values(0):
-                vals = df[sym]
-                if vals.ndim == 1:
-                    assert not name is None
-                    vals = vals.to_frame(name)
-                data[sym] = dd.from_pandas(vals, *args, **kwargs)
-
-            self.data = data
-
-        else:
-            if name is None: name = lambda p: Path(p).parts[-1].split(".")[0]
-
-            syms = list(map(name, files))
-            assert len(set(syms)) == len(files)
-            reader = dd.read_csv if files[0].endswith(".csv") else dd.read_parquet
-            self.data = {s: reader(f, *args, **kwargs) for s, f in zip(syms, files)}
-
-        return self
-
-    def __init__(self, *files, name=None, args=None, kwargs=None, verify_integrity= False):
-        self._new(*files, name=name, args=args, kwargs=kwargs, self= self)
 
     @property
     def shape(self):
@@ -105,36 +101,6 @@ class _DataBase:
     def select(self, symbols):
         return self._new({s: self.get(s) for s in symbols})
 
-    def head(self, n= 5, i= 0):
-        hd = self.data[self.symbols[i]].head(n)
-        if isinstance(hd, pd.DataFrame): return hd
-        return hd.compute()
-
-    def sample(self, n= 1000, with_sym= False, shuffle= True, generator= default_rng):
-        rows = self.shapes[0]
-        cmsum = np.cumsum(rows)
-        nrows = cmsum[-1]
-        n = min(n, nrows)
-
-        chose = np.sort(generator.choice(nrows, size= (n,), replace= False))
-        split = np.split(chose, np.searchsorted(chose, cmsum))
-
-        sample = dict()
-        for sym, r, ixs in zip(rows.keys(), rows, split):
-            sample[sym] = self.data[sym].iloc[ixs]
-            ixs -= r
-
-        if isinstance(sample, tuple): sample = sample[0]
-        sample = pd.concat(sample)
-
-        if shuffle:
-            ixs = np.arange(n)
-            generator.shuffle(ixs)
-            sample = sample.iloc[ixs]
-
-        if with_sym: return sample
-        else: return sample.droplevel(0, axis= 0)
-
     def copy(self, deep=False):
         if deep:
             new = {s: d.copy() for s, d in self}
@@ -154,16 +120,33 @@ class _DataBase:
 
     def __iter__(self): return iter(self.data.items())
 
-    def __call__(self, func, *args, n= None, pass_sym= False, **kwargs):
+    def __call__(self, func, *args, name= None, pass_sym= False, **kwargs):
+        """
+        Will apply a function to the data. That function needs to return a pandas object.
+        If it is one-dimensional, it will be forced to be 2-dimensional. When forcing this
+        and `name` is not passed, func.__name__ will be the name of the resulting column, unless
+        the returned object from func already has a name that is not None. When `name` is passed and
+        the returned object is one-dimensional, `name` will be used.
+
+        :param func:
+        :param args:
+        :param name:
+        :param pass_sym:
+        :param kwargs:
+        :return:
+        """
         def _func(*args, **kwargs):
             res = func(*args, **kwargs)
+            assert isinstance(res, (pd.DataFrame, pd.Series, pd.Index)), \
+                "`func` needs to return a pandas object, otherwise use .apply"
+
             if res.ndim == 1:
-                if not n is None: res.name = n
+                if not name is None: res.name = name
                 elif res.name is None: res.name = func.__name__
                 res = res.to_frame()
             return res
 
-        return self._new(self.apply(_func, *args, pass_sym= pass_sym, **kwargs))
+        return DataSet(self.apply(_func, *args, pass_sym= pass_sym, **kwargs))
 
     def __repr__(self):
         syms = self.symbols[:3]
@@ -175,12 +158,18 @@ class _DataBase:
         if isinstance(dfs, tuple): dfs = dfs[0]
         return "\n" + repr(pd.concat(dfs))
 
+    def __setitem__(self, key, value):
+        raise TypeError(f"{self.__class__} does not support __setitem__")
 
-class Data(_DataBase):
-    pass
+    def __getitem__(self, item):
+        raise TypeError(f"{self.__class__} does not support __getitem__")
+
+
+class Data(_DataBase): pass
 
 class DataSeries(Data):
     _axes = (0,)
+    _frame = False
 
     def _all_equal(self, axis):
         assert axis in self._axes, "invalid axis argument"
@@ -222,15 +211,16 @@ class DataSeries(Data):
             assert self.symbols.isin(data.symbols).all()
 
         @delayed
-        def _adj(d, other):
-            adapted = adapt(d.index, other)
-            if adapted.ndim == 1: return adapted.to_frame(name)
-            return adapted
-
-        return self._new({s: _adj(data.get(s), d) for s, d in self})
+        def ad(ix, other): return adapt(ix, other)
+        return self.__class__({s: ad(data.get(s).index, d) for s, d in self})
 
     def join(self, with_symbols= True):
-        if with_symbols: data = [d.assign(symbol= s) for s, d in self]
+        if with_symbols:
+            if self._frame:
+                data = [d.assign(symbol= s) for s, d in self]
+            else:
+                data = [d.to_frame().assign(symbol= s) for s, d in self]
+
         else: data = list(self.data.values())
         try: full = dd.from_delayed(data)
         except TypeError: full = dd.concat(data)
@@ -238,33 +228,35 @@ class DataSeries(Data):
 
     def ffill(self): return self(lambda d: d.ffill())
 
-    def show_issues(self, absolute= True):
-        """
-        what do I want
-            for each symbol
-                for each column
-                    nan
-                    inf
-        :return:
-        """
+    def head(self, n= 5, i= 0):
+        hd = self.data[self.symbols[i]].head(n)
+        if isinstance(hd, (pd.DataFrame, pd.Series)): return hd
+        return hd.compute()
 
-        def issues(d):
-            numeric = d.select_dtypes(exclude= ["string", "object"])
-            return pd.concat(dict(inf= numeric.abs().eq(np.inf).sum(),
-                                  nan= d.isna().sum()), axis= 1)
+    def sample(self, n= 1000, with_sym= False, shuffle= True, generator= default_rng):
+        rows = self.shapes[0]
+        cmsum = np.cumsum(rows)
+        nrows = cmsum[-1]
+        n = min(n, nrows)
 
-        if absolute:
-            show = issues
-        else:
-            def show(d): return issues(d)/d.shape[0]
+        chose = np.sort(generator.choice(nrows, size= (n,), replace= False))
+        split = np.split(chose, np.searchsorted(chose, cmsum))
 
-        show = delayed(show)
-        results = self.client.compute({s: show(d) for s, d in self})
-        if isinstance(results, tuple): results = results[0]
-        return pd.concat(results).unstack(-1)
+        sample = dict()
+        for sym, r, ixs in zip(rows.keys(), rows, split):
+            sample[sym] = self.data[sym].iloc[ixs]
+            ixs -= r
 
-    def describe(self):
-        results = self.client.compute({s: d.describe() for s, d in self})
+        if isinstance(sample, tuple): sample = sample[0]
+        sample = pd.concat(sample)
+
+        if shuffle:
+            ixs = np.arange(n)
+            generator.shuffle(ixs)
+            sample = sample.iloc[ixs]
+
+        if with_sym: return sample
+        else: return sample.droplevel(0, axis= 0)
 
     def missing_sessions(self, schedule, tf):
         ranges = self.index_ranges
@@ -296,6 +288,10 @@ class DataSeries(Data):
 class DataSet(DataSeries):
     _axes = (0, 1)
 
+    def __init__(self, data, same_cols= False):
+        self.data = data
+        if same_cols: self.validate()
+
     def validate(self):
         first = self.data[self.symbols[0]]
         cols = first.columns
@@ -318,6 +314,29 @@ class DataSet(DataSeries):
     @property
     def all_columns_equal(self):
         return self._all_equal(1)
+
+    def show_issues(self, absolute= True):
+        """
+        what do I want
+            for each symbol
+                for each column
+                    nan
+                    inf
+        :return:
+        """
+
+        def issues(d):
+            numeric = d.select_dtypes(exclude= ["string", "object"])
+            return pd.concat(dict(inf= numeric.abs().eq(np.inf).sum(),
+                                  nan= d.isna().sum()), axis= 1)
+        if absolute: show = issues
+        else:
+            def show(d): return issues(d)/d.shape[0]
+
+        show = delayed(show)
+        results = self.client.compute({s: show(d) for s, d in self})
+        if isinstance(results, tuple): results = results[0]
+        return pd.concat(results).unstack(-1)
 
     def __getitem__(self, item):
         if not is_list_like(item): item = [item]
