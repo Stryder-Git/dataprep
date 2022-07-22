@@ -1,19 +1,5 @@
 from dask.delayed import delayed
 
-
-@delayed
-def _sessions(ix, tf):
-    """
-    How to group by sessions?
-        find the start (diff > tf)
-        allocate session markers
-        group by them
-
-    :param df:
-    :return:
-    """
-    return ix.where(~(ix - ix.shift()).le(tf), None).ffill()
-
 @delayed
 def missing(self):
     # drop all days that were missing entirely
@@ -29,29 +15,34 @@ def missing_indexes(self):
 @delayed
 def missing_sessions(dfix, ix, sessions):
     """
-    reindex   (get none where missing)
-    groupby sessions, count (to get the number of values in each session)
+    get
 
-    select all those where count eq 0 from reindexed
-    groupby session and select first value
 
     :param dfix:
     :param ix:
     :return:
     """
     redfix = dfix.to_series().reindex(ix)
-    redfix = redfix.where(redfix.isin(sessions)).ffill()
-    counts = redfix.groupby(redfix).count()
+    grper = ix.to_series().where(ix.isin(sessions)).ffill()
+    counts = redfix.groupby(grper).count()
     return counts[counts.eq(0)]
 
+@delayed
+def incomplete_sessions(dfix, ix, sessions):
+    """
+    get counts of
 
-def incomplete_sessions(self):
-    sessions = self._reindexed_sessions(self.columns[0])
+    :param self:
+    :return:
+    """
+    redfix = dfix.to_series().reindex(ix)
+    grper = ix.to_series().where(ix.isin(sessions)).ffill()
+    grp = redfix.groupby(grper)
+    counts = grp.count()
+    size = grp.size()
+    return counts[counts.ne(size) & counts.ne(0)]
 
-    count = sessions.transform("count")
-    not_missing_but_incomplete = count.lt(sessions.transform("size")) & count.ne(0)
 
-    df = self._reindexed[not_missing_but_incomplete]
-    sessions = self._sessions(df)
-    return df[sessions.cumcount().eq(0)].index.to_series().reset_index(drop=True)
+
+
 

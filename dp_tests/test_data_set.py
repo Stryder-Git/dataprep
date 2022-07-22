@@ -3,6 +3,8 @@ import pandas as pd
 from pandas.testing import assert_frame_equal
 import numpy as np
 
+import pandas_market_calendars as mcal
+
 from dataprep import DataSet
 
 
@@ -18,6 +20,11 @@ Permutations
     indexes that have missing sessions
 
         include breaks
+    
+
+TODO:
+    
+    The fake opens and closes in the index below messes with missing_sessions and incomplete_sessions tests
 
 
 """
@@ -96,10 +103,34 @@ def test_dataset_properties(data):
 
     assert list(ds.symbols) == list(data.keys())
 
+sched = pd.DataFrame(dict(
+    market_open = ['2000-01-03 02:00:00', '2000-01-04 03:00:00', '2000-01-05 02:00:00', '2000-01-06 02:00:00', '2000-01-07 02:00:00'],
+    break_start = ['2000-01-03 04:00:00', '2000-01-04 04:00:00', '2000-01-05 04:00:00', '2000-01-06 04:00:00', '2000-01-07 04:00:00'],
+    break_end = ['2000-01-03 05:00:00', '2000-01-04 05:00:00', '2000-01-05 05:00:00', '2000-01-06 04:00:00', '2000-01-07 05:00:00'],
+    market_close = ['2000-01-03 08:00:00', '2000-01-04 08:00:00', '2000-01-05 08:00:00', '2000-01-06 04:00:00', '2000-01-07 08:00:00'],
+), dtype= "datetime64[ns, UTC]")
 
+
+price_data_missing = dict(
+    A = pd.DataFrame(index= ix[ix.normalize()!=pd.Timestamp("2000-01-06", tz= "UTC")]),
+    B = pd.DataFrame(index= ix[ix.normalize()!=pd.Timestamp("2000-01-03", tz= "UTC")]), # shouldn't be considered missing (because it's the first date)
+    C = pd.DataFrame(index= ix[ix.normalize()!=pd.Timestamp("2000-01-05", tz= "UTC")])
+)
+
+@pytest.mark.parametrize("data", [price_data_missing,])
 def test_missing_sessions(data):
     ds = DataSet(data)
+    print(ds.missing_sessions(sched, "1.5H").compute())
+    pytest.fail()
 
+
+
+
+@pytest.mark.parametrize("data", [price_data_missing,])
+def test_incomplete_sessions(data):
+    ds = DataSet(data)
+    print(ds.incomplete_sessions(sched, "1.5H").compute())
+    pytest.fail()
 
 
 

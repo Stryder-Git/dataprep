@@ -320,6 +320,19 @@ class DataSet:
                                               sessions)
         return self.__new(results)
 
+    def incomplete_sessions(self, schedule, tf):
+        ranges = self.index_ranges
+        ic = IndexCalculator(schedule, tf)
+        sessions = ic.sessions
+
+        results = {}
+        for s, d in self:
+            rs = ranges.loc[s]
+            results[s] = _ds.incomplete_sessions(d.index,
+                                              ic.timex(frm=rs[0], to=rs[1]),
+                                              sessions)
+        return self.__new(results)
+
 
     """
     what do I want
