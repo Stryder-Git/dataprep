@@ -87,7 +87,7 @@ class _DataBase:
     def persist(self):
         pers = self.client.persist(self.data)
         if isinstance(pers, tuple): pers = pers[0]
-        return self._new(pers)
+        return self.__class__(pers)
 
     def compute(self):
         comped = self.client.compute(self.data)
@@ -95,22 +95,22 @@ class _DataBase:
         return pd.concat(comped.result())
 
     def get(self, sym, wrap= False):
-        if wrap: return self._new({sym: self.data[sym]})
+        if wrap: return self.__class__({sym: self.data[sym]})
         return self.data[sym]
 
     def select(self, symbols):
-        return self._new({s: self.get(s) for s in symbols})
+        return self.__class__({s: self.get(s) for s in symbols})
 
     def copy(self, deep=False):
         if deep:
             new = {s: d.copy() for s, d in self}
         else:
             new = self.data.copy()
-        return self._new(new)
+        return self.__class__(new)
 
     def drop_empties(self):
         shapes = self._shapes
-        return self._new({s: self.get(s) for s, shape in shapes.items() if shape[0]})
+        return self.__class__({s: self.get(s) for s, shape in shapes.items() if shape[0]})
 
     def drop(self, symbols):
         syms = self.symbols
