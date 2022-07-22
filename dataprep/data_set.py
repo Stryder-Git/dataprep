@@ -133,7 +133,7 @@ class _DataBase:
         :param name:
         :param pass_sym:
         :param kwargs:
-        :return:
+        :return: DataSet
         """
         def _func(*args, **kwargs):
             res = func(*args, **kwargs)
@@ -226,7 +226,8 @@ class DataSeries(Data):
         except TypeError: full = dd.concat(data)
         return full
 
-    def ffill(self): return self(lambda d: d.ffill())
+    def ffill(self):
+        return self.__class__(self.apply(lambda d: d.ffill()))
 
     def head(self, n= 5, i= 0):
         hd = self.data[self.symbols[i]].head(n)
@@ -258,31 +259,29 @@ class DataSeries(Data):
         if with_sym: return sample
         else: return sample.droplevel(0, axis= 0)
 
-    def missing_sessions(self, schedule, tf):
-        ranges = self.index_ranges
+    def _sessions(self, schedule, tf):
         ic = IndexCalculator(schedule, tf)
-        sessions = ic.sessions
+        return self.index_ranges, ic, ic.sessions
 
+    def missing_sessions(self, schedule, tf):
+        ranges, ic, sessions = self._sessions(schedule, tf)
         results = {}
         for s, d in self:
             rs = ranges.loc[s]
             results[s] = _ds.missing_sessions(d.index,
                                               ic.timex(frm=rs[0], to=rs[1]),
                                               sessions)
-        return self._new(results)
+        return Data(results)
 
     def incomplete_sessions(self, schedule, tf):
-        ranges = self.index_ranges
-        ic = IndexCalculator(schedule, tf)
-        sessions = ic.sessions
-
+        ranges, ic, sessions = self._sessions(schedule, tf)
         results = {}
         for s, d in self:
             rs = ranges.loc[s]
             results[s] = _ds.incomplete_sessions(d.index,
                                               ic.timex(frm=rs[0], to=rs[1]),
                                               sessions)
-        return self._new(results)
+        return Data(results)
 
 
 class DataSet(DataSeries):
