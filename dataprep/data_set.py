@@ -148,16 +148,6 @@ class _DataBase:
 
         return DataSet(self.apply(_func, *args, pass_sym= pass_sym, **kwargs))
 
-    def __repr__(self):
-        syms = self.symbols[:3]
-        dfs = {}
-        for sym in syms:
-            dfs[sym] = self.get(sym).head(2)
-
-        dfs = self.client.compute(dfs)
-        if isinstance(dfs, tuple): dfs = dfs[0]
-        return "\n" + repr(pd.concat(dfs))
-
     def __setitem__(self, key, value):
         raise TypeError(f"{self.__class__} does not support __setitem__")
 
@@ -165,7 +155,20 @@ class _DataBase:
         raise TypeError(f"{self.__class__} does not support __getitem__")
 
 
-class Data(_DataBase): pass
+class Data(_DataBase):
+    def compute(self):
+        res = self.client.compute(self.data)
+        if isinstance(res, tuple): return res[0]
+        return res
+
+    def persist(self):
+        res = self.client.persist(self.data)
+        if isinstance(res, tuple): return res[0]
+        return res
+
+    def __repr__(self):
+        rp = {s: self.get(s) for s in self.symbols[:3]}
+        return repr(rp)
 
 class DataSeries(Data):
     _axes = (0,)
@@ -282,6 +285,16 @@ class DataSeries(Data):
                                               ic.timex(frm=rs[0], to=rs[1]),
                                               sessions)
         return Data(results)
+
+    def __repr__(self):
+        syms = self.symbols[:3]
+        dfs = {}
+        for sym in syms:
+            dfs[sym] = self.get(sym).head(2)
+
+        dfs = self.client.compute(dfs)
+        if isinstance(dfs, tuple): dfs = dfs[0]
+        return "\n" + repr(pd.concat(dfs))
 
 
 class DataSet(DataSeries):
