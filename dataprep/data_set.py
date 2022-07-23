@@ -262,29 +262,29 @@ class DataSeries(_DataBase):
         if with_sym: return sample
         else: return sample.droplevel(0, axis= 0)
 
-    def _sessions(self, schedule, tf):
+    def _sessions(self, func, schedule, tf):
         ic = IndexCalculator(schedule, tf)
-        return self.index_ranges, ic, ic.sessions
+        ranges = self.index_ranges
+        sessions = ic.sessions
+
+        results = {}
+        for s, d in self:
+            rs = ranges.loc[s]
+            results[s] = func(d.index, ic.timex(frm=rs[0], to=rs[1]), sessions)
+
+        return Data(results)
 
     def missing_sessions(self, schedule, tf):
-        ranges, ic, sessions = self._sessions(schedule, tf)
-        results = {}
-        for s, d in self:
-            rs = ranges.loc[s]
-            results[s] = _ds.missing_sessions(d.index,
-                                              ic.timex(frm=rs[0], to=rs[1]),
-                                              sessions)
-        return Data(results)
+        return self._sessions(_ds.missing_sessions, schedule, tf)
 
     def incomplete_sessions(self, schedule, tf):
-        ranges, ic, sessions = self._sessions(schedule, tf)
-        results = {}
-        for s, d in self:
-            rs = ranges.loc[s]
-            results[s] = _ds.incomplete_sessions(d.index,
-                                              ic.timex(frm=rs[0], to=rs[1]),
-                                              sessions)
-        return Data(results)
+        return self._sessions(_ds.incomplete_sessions, schedule, tf)
+
+    def incomplete_or_missing_sessions(self, schedule, tf):
+        return self._sessions(_ds.incomplete_or_missing, schedule, tf)
+
+    def missing_indexes(self, schedule, tf):
+        return self._sessions(_ds.missing_indexes, schedule, tf)
 
     def __repr__(self):
         syms = self.symbols[:3]

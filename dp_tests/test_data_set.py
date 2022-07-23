@@ -127,17 +127,62 @@ def test_missing_sessions(data, expected):
     assert u.dict_same(missing.compute(), expected)
 
 
-# @pytest.mark.parametrize("data, expected", [
-#     (dict(
-#
-#     )),
-#     ])
-# def test_incomplete_sessions(data):
-#     ds = DataSet(data)
-#     print(ds.incomplete_sessions(sched, "1.5H").compute())
-#     pytest.fail()
+incomplete_data = dict(
+    A = pd.DataFrame(index= ix[3:]), # missing '2000-01-03 02:00:00', '2000-01-03 03:30:00', '2000-01-03 05:00:00'
+    B = pd.DataFrame(index= _drop(ix, [5])), # missing '2000-01-04 05:00:00'
+    C = pd.DataFrame(index= _drop(ix, [7, 8])), # missing '2000-01-05 02:00:00', '2000-01-05 03:30:00'
+    D = pd.DataFrame(index= ix[:-2]), # missing '2000-01-07 05:00:00', '2000-01-07 06:30:00'
+    E = pd.DataFrame(index= ix)) # missing []
+
+@pytest.mark.parametrize("data, expected", [
+    (incomplete_data
+    ,dict(
+        A = pd.DatetimeIndex(['2000-01-03 05:00:00'], dtype= "datetime64[ns, UTC]", freq= None),
+        B = pd.DatetimeIndex(['2000-01-04 05:00:00'], dtype= "datetime64[ns, UTC]", freq= None),
+        C = pd.DatetimeIndex([], dtype= "datetime64[ns, UTC]", freq= None),
+        D = pd.DatetimeIndex([], dtype= "datetime64[ns, UTC]", freq= None),
+        E = pd.DatetimeIndex([], dtype= "datetime64[ns, UTC]", freq= None),
+    ))])
+def test_incomplete_sessions(data, expected):
+    ds = DataSet(data)
+    incomplete = ds.incomplete_sessions(sched, "1.5H")
+
+    assert isinstance(incomplete, Data) and not isinstance(incomplete, DataSet)
+    assert u.dict_same(incomplete.compute(), expected)
 
 
+@pytest.mark.parametrize("data, expected", [
+    (incomplete_data,
+     dict(
+        A = pd.DatetimeIndex(['2000-01-03 02:00:00', '2000-01-03 05:00:00'], dtype= "datetime64[ns, UTC]", freq= None),
+        B = pd.DatetimeIndex(['2000-01-04 05:00:00'], dtype= "datetime64[ns, UTC]", freq= None),
+        C = pd.DatetimeIndex(['2000-01-05 02:00:00'], dtype= "datetime64[ns, UTC]", freq= None),
+        D = pd.DatetimeIndex(['2000-01-07 05:00:00'], dtype= "datetime64[ns, UTC]", freq= None),
+        E = pd.DatetimeIndex([], dtype= "datetime64[ns, UTC]", freq= None)))
+])
+def test_incomplete_or_missing_sessions(data, expected):
+    ds = DataSet(data)
+    incomp_miss = ds.incomplete_or_missing_sessions(sched, "1.5H")
 
+    assert isinstance(incomp_miss, Data) and not isinstance(incomp_miss, DataSet)
+    assert u.dict_same(incomp_miss.compute(), expected)
+
+
+@pytest.mark.parametrize("data, expected", [
+    (incomplete_data,
+     dict(
+         A=pd.DatetimeIndex(['2000-01-03 02:00:00', '2000-01-03 03:30:00', '2000-01-03 05:00:00'], dtype="datetime64[ns, UTC]", freq=None),
+         B=pd.DatetimeIndex(['2000-01-04 05:00:00'], dtype="datetime64[ns, UTC]", freq=None),
+         C=pd.DatetimeIndex(['2000-01-05 02:00:00', '2000-01-05 03:30:00'], dtype="datetime64[ns, UTC]", freq=None),
+         D=pd.DatetimeIndex(['2000-01-07 05:00:00', '2000-01-07 06:30:00'], dtype="datetime64[ns, UTC]", freq=None),
+         E=pd.DatetimeIndex([], dtype="datetime64[ns, UTC]", freq=None),
+     ))
+])
+def test_missing_indexes(data, expected):
+    ds = DataSet(data)
+    missing = ds.missing_indexes(sched, "1.5H")
+
+    assert isinstance(missing, Data) and not isinstance(missing, DataSet)
+    assert u.dict_same(missing.compute(), expected)
 
 
