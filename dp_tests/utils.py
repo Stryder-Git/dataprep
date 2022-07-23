@@ -1,16 +1,12 @@
 
 
 def dict_same(one, two):
-    if one.keys() != two.keys():
-        return False
-
-    for k in one:
-        o, t = one[k], two[k]
-        if o.shape != t.shape:
-            return False
-
-        if (o != t).any():
-            return False
-
-    return True
+    assert one.keys() == two.keys()
+    try:
+        for k in one:
+            o, t = one[k], two[k]
+            assert o.shape == t.shape
+            assert (o == t).all()
+    except AssertionError as e:
+        raise AssertionError(f"Mismatch in {k}:\n{o}\n{t}") from e
 

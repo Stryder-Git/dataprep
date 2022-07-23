@@ -124,7 +124,7 @@ def test_missing_sessions(data, expected):
     missing = ds.missing_sessions(sched, "1.5H")
 
     assert isinstance(missing, Data) and not isinstance(missing, DataSet)
-    assert u.dict_same(missing.compute(), expected)
+    u.dict_same(missing.compute(), expected)
 
 
 incomplete_data = dict(
@@ -148,7 +148,7 @@ def test_incomplete_sessions(data, expected):
     incomplete = ds.incomplete_sessions(sched, "1.5H")
 
     assert isinstance(incomplete, Data) and not isinstance(incomplete, DataSet)
-    assert u.dict_same(incomplete.compute(), expected)
+    u.dict_same(incomplete.compute(), expected)
 
 
 @pytest.mark.parametrize("data, expected", [
@@ -165,7 +165,7 @@ def test_incomplete_or_missing_sessions(data, expected):
     incomp_miss = ds.incomplete_or_missing_sessions(sched, "1.5H")
 
     assert isinstance(incomp_miss, Data) and not isinstance(incomp_miss, DataSet)
-    assert u.dict_same(incomp_miss.compute(), expected)
+    u.dict_same(incomp_miss.compute(), expected)
 
 
 @pytest.mark.parametrize("data, expected", [
@@ -183,6 +183,6 @@ def test_missing_indexes(data, expected):
     missing = ds.missing_indexes(sched, "1.5H")
 
     assert isinstance(missing, Data) and not isinstance(missing, DataSet)
-    assert u.dict_same(missing.compute(), expected)
+    u.dict_same(missing.compute(), expected)
 
 

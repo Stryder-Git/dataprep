@@ -13,8 +13,7 @@ def delayer(x): return x
 ])
 def test_compute(data):
     d = Data({s: delayer(d) for s, d in data.items()})
-
-    assert u.dict_same(d.compute(), data)
+    u.dict_same(d.compute(), data)
 
 
 
