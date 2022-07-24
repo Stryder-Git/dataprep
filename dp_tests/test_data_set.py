@@ -4,6 +4,7 @@ from pandas.testing import assert_frame_equal
 import numpy as np
 import pandas_market_calendars as mcal
 from dataprep import Data, DataSet
+from dataprep import utils
 
 import dp_tests.utils as u
 
@@ -186,7 +187,120 @@ def test_missing_indexes(data, expected):
     u.dict_same(missing.compute(), expected)
 
 
+# for teting
+def make(ix, n): return pd.Series(range(len(ix)), index=pd.DatetimeIndex(ix), name=n)
 
 
-def test_match():
-    return
+firstix = make(["2022-06-15", '2022-06-16', '2022-06-16 15:00:00', "2022-06-20"], "one").index
+first = make(["2022-05-15", "2022-05-20", "2022-06-15", "2022-06-15 00:00:01", "2022-06-16 12:00:00", "2022-06-17",
+              "2022-06-20"], "two")
+
+secondix = make(["2000-01-15", "2000-03-15", "2000-04-15", "2000-09-15", "2000-10-15"], "one").index
+second = make(["2000-02-20", "2000-02-25", "2000-03-15 00:00:01", "2000-04-01"], "two")
+
+adapt_results = [
+    (firstix, first, pd.Series([1, 3, 3, 5]), dict(norm=True, ffill=True)),  # 1+ nTrue fTrue
+    (firstix, first, pd.Series([1, 3, np.nan, 5]), dict(norm=True, ffill=False)),  # 1+ nTrue fFalse
+
+    (secondix, second, pd.Series([np.nan, 1, 3, 3, 3]), dict(norm=False, ffill=True)),  # 1+ nFalse fTrue
+    (secondix, second, pd.Series([np.nan, 1, 3, np.nan, np.nan]), dict(norm=False, ffill=False)),  # 1+ nFalse fFalse
+
+    (firstix, first, pd.Series([3, 4, 4, 6]), dict(off=0, norm=True, ffill=True)),  # 0 nTrue fTrue
+    (firstix, first, pd.Series([3, 4, np.nan, 6]), dict(off=0, norm=True, ffill=False)),  # 0 nTrue fFalse
+
+    (secondix, second, pd.Series([np.nan, 1, 3, 3, 3]), dict(off=0, norm=False, ffill=True)),  # 0 nFalse fTrue
+    (secondix, second, pd.Series([np.nan, 1, 3, np.nan, np.nan]), dict(off=0, norm=False, ffill=False))
+    # 0 nFalse fFalse
+
+]
+
+"""
+what are the possiblities regarding data index relationship
+
+    whole:
+        start - before/after
+        end - before/after
+            = 4
+
+            before/before
+            before/after
+            after/before
+            after/after
+
+    each index:
+
+        new info on index
+        new info between current and previous index
+        neither
+            = 3
+
+    data per index:
+        between current and previous
+            zero new piece of info (poi) 
+            one poi
+            2+ pois
+
+
+
+what are kwarg permutations
+
+    off - 0/ 1+
+    norm   - True/False
+    ffill  - True/False
+        = 8
+
+    0 nTrue fTrue
+    0 nTrue fFalse
+    0 nFalse fTrue
+    0 nFalse fFalse
+    1+ nTrue fTrue
+    1+ nTrue fFalse
+    1+ nFalse fTrue
+    1+ nFalse fFalse
+
+
+
+"""
+
+
+@pytest.mark.parametrize("index, data, result, kw", adapt_results)
+def test_adpat(index, data, result, kw):
+    result.index = index
+    calced = utils.adapt(index, data, **kw)
+
+    equals = result.eq(calced.fillna(-1), fill_value=-1).all()
+    if kw.get("fromix", False) is True:
+        equals = equals.all()
+
+    assert equals, str(result) + "\n" + str(calced)
+
+
+#
+#
+# """
+# * fmp returns need to be replaced with test_data
+#
+# * test threaded and no threaded
+# * test with and without ix
+# * test different by and whats
+#
+# """
+#
+#
+# #### Income Statement
+# def _is_getter(api, sym, *args, **kwargs):
+#     return pd.read_csv(f"financial_statements\\{sym}_income_statement.csv")
+#
+#
+# def _bs_getter(api, sym, *args, **kwargs):
+#     return pd.read_csv(f"financial_statements\\{sym}_balance_sheet_statement.csv")
+#
+#
+# def _cs_getter(api, sym, *args, **kwargs):
+#     return pd.read_csv(f"financial_statements\\{sym}_cash_flow_statement.csv")
+#
+#
+# fmp.income_statement = _is_getter
+# fmp.balance_sheet_statement = _bs_getter
+# fmp.cash_flow_statement = _cs_getter
+
