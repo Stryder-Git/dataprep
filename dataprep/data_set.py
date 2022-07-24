@@ -7,7 +7,7 @@ from functools import cached_property, reduce
 from pathlib import Path
 from index_calculator import IndexCalculator
 
-import dataprep._delays as _ds
+import dataprep.utils as _ds
 
 default_rng = np.random.default_rng()
 is_list_like = pd.api.types.is_list_like
@@ -374,38 +374,4 @@ class DataSet(DataSeries):
         for s in self.symbols:
             other = value.get(s)
             self.data[s] = _set(self.data[s], key, other[key])
-
-
-    """
-    what do I want
-        missing sessions
-        incomplete sessions
-        missing indexes
-        
-        padding of incomplete
-        padding of missing
-    
-    """
-
-
-    """
-    missing_sessions
-        uses reindexed index column
-        groupby sessions
-        uses .transform(count).eq(0) to determine what ixs are missing   
-        
-        then from the reindexed df, 
-            select missing
-        missing.groupby sessions,
-            cumcount().eq(0) (to get the first row of the df
-        
-    incomplete_sessions
-        
-        
-        
-        
-    
-    missing_indexes
-    """
-
 
