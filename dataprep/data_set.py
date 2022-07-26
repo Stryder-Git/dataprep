@@ -7,7 +7,7 @@ from functools import cached_property, reduce
 from pathlib import Path
 from index_calculator import IndexCalculator
 
-import dataprep.utils as _ds
+import dataprep.utils as u
 
 default_rng = np.random.default_rng()
 is_list_like = pd.api.types.is_list_like
@@ -214,7 +214,7 @@ class DataSeries(_DataBase):
             assert self.symbols.isin(data.symbols).all()
 
         @delayed
-        def ad(ix, other): return adapt(ix, other)
+        def ad(ix, other): return u.adapt(ix, other, **kwargs)
         return self.__class__({s: ad(data.get(s).index, d) for s, d in self})
 
     def join(self, with_symbols= True):
@@ -275,16 +275,16 @@ class DataSeries(_DataBase):
         return Data(results)
 
     def missing_sessions(self, schedule, tf):
-        return self._sessions(_ds.missing_sessions, schedule, tf)
+        return self._sessions(u.missing_sessions, schedule, tf)
 
     def incomplete_sessions(self, schedule, tf):
-        return self._sessions(_ds.incomplete_sessions, schedule, tf)
+        return self._sessions(u.incomplete_sessions, schedule, tf)
 
     def incomplete_or_missing_sessions(self, schedule, tf):
-        return self._sessions(_ds.incomplete_or_missing, schedule, tf)
+        return self._sessions(u.incomplete_or_missing, schedule, tf)
 
     def missing_indexes(self, schedule, tf):
-        return self._sessions(_ds.missing_indexes, schedule, tf)
+        return self._sessions(u.missing_indexes, schedule, tf)
 
     def __repr__(self):
         syms = self.symbols[:3]

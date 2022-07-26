@@ -1,6 +1,6 @@
 import pytest
 import pandas as pd
-from pandas.testing import assert_frame_equal
+from pandas.testing import assert_frame_equal, assert_series_equal
 import numpy as np
 import pandas_market_calendars as mcal
 from dataprep import Data, DataSet
@@ -190,7 +190,6 @@ def test_missing_indexes(data, expected):
 # for teting
 def make(ix, n): return pd.Series(range(len(ix)), index=pd.DatetimeIndex(ix), name=n)
 
-
 firstix = make(["2022-06-15", '2022-06-16', '2022-06-16 15:00:00', "2022-06-20"], "one").index
 first = make(["2022-05-15", "2022-05-20", "2022-06-15", "2022-06-15 00:00:01", "2022-06-16 12:00:00", "2022-06-17",
               "2022-06-20"], "two")
@@ -209,9 +208,7 @@ adapt_results = [
     (firstix, first, pd.Series([3, 4, np.nan, 6]), dict(off=0, norm=True, ffill=False)),  # 0 nTrue fFalse
 
     (secondix, second, pd.Series([np.nan, 1, 3, 3, 3]), dict(off=0, norm=False, ffill=True)),  # 0 nFalse fTrue
-    (secondix, second, pd.Series([np.nan, 1, 3, np.nan, np.nan]), dict(off=0, norm=False, ffill=False))
-    # 0 nFalse fFalse
-
+    (secondix, second, pd.Series([np.nan, 1, 3, np.nan, np.nan]), dict(off=0, norm=False, ffill=False)) # 0 nFalse fFalse
 ]
 
 """
@@ -262,7 +259,6 @@ what are kwarg permutations
 
 """
 
-
 @pytest.mark.parametrize("index, data, result, kw", adapt_results)
 def test_adpat(index, data, result, kw):
     result.index = index
@@ -273,6 +269,85 @@ def test_adpat(index, data, result, kw):
         equals = equals.all()
 
     assert equals, str(result) + "\n" + str(calced)
+
+
+"""
+
+Two datasets with each two dataframes
+
+
+    
+"""
+
+firstixset = DataSet({
+    "A": firstix.to_frame(),
+    "B": firstix.to_frame()})
+firstset = DataSet({
+    "A": first.to_frame(),
+    "B": (first*2).to_frame(),
+})
+secondixset = DataSet({
+    "A": secondix.to_frame(),
+    "B": secondix.to_frame()})
+secondset = DataSet({
+    "A": second.to_frame(),
+    "B": (second*2).to_frame()
+})
+
+
+match_data = [
+    (firstset, firstixset, DataSet({
+        "A": pd.Series([1, 3, 3, 5], index= firstix, dtype= float),
+        "B": pd.Series([1, 3, 3, 5], index= firstix, dtype= float)*2
+    }), dict(norm=True, ffill=True)),  # 1+ nTrue fTrue
+
+    (firstset, firstixset, DataSet({
+        "A": pd.Series([1, 3, np.nan, 5], index= firstix),
+        "B": pd.Series([1, 3, np.nan, 5], index= firstix)*2
+    }), dict(norm=True, ffill=False)),  # 1+ nTrue fFalse
+
+    (secondset, secondixset, DataSet({
+        "A": pd.Series([np.nan, 1, 3, 3, 3], index= secondix),
+        "B": pd.Series([np.nan, 1, 3, 3, 3], index= secondix)*2
+    }), dict(norm=False, ffill=True)),  # 1+ nFalse fTrue
+
+    (secondset, secondixset, DataSet({
+        "A": pd.Series([np.nan, 1, 3, np.nan, np.nan], index= secondix),
+        "B": pd.Series([np.nan, 1, 3, np.nan, np.nan], index= secondix)*2
+    }), dict(norm=False, ffill=False)),  # 1+ nFalse fFalse
+
+    (firstset, firstixset, DataSet({
+        "A": pd.Series([3, 4, 4, 6], index= firstix),
+        "B": pd.Series([3, 4, 4, 6], index= firstix)*2
+    }), dict(off=0, norm=True, ffill=True)),  # 0 nTrue fTrue
+
+    (firstset, firstixset, DataSet({
+        "A": pd.Series([3, 4, np.nan, 6], index= firstix),
+        "B": pd.Series([3, 4, np.nan, 6], index= firstix)*2
+    }), dict(off=0, norm=True, ffill=False)),  # 0 nTrue fFalse
+
+    (secondset, secondixset, DataSet({
+        "A": pd.Series([np.nan, 1, 3, 3, 3], index= secondix),
+        "B": pd.Series([np.nan, 1, 3, 3, 3], index= secondix)*2
+    }), dict(off=0, norm=False, ffill=True)),  # 0 nFalse fTrue
+
+    (secondset, secondixset, DataSet({
+        "A": pd.Series([np.nan, 1, 3, np.nan, np.nan], index= secondix),
+        "B": pd.Series([np.nan, 1, 3, np.nan, np.nan], index= secondix)*2
+    }), dict(off=0, norm=False, ffill=False))
+    # 0 nFalse fFalse
+]
+
+@pytest.mark.parametrize("datas, ixset, expected, kwargs", match_data)
+def test_match(datas, ixset, expected, kwargs):
+
+    expected = expected(lambda d: d.to_frame())
+
+    result = datas.match(ixset, **kwargs)
+    result = result.compute()
+    expected = expected.compute()
+
+    assert_series_equal(result, expected)
 
 
 #
