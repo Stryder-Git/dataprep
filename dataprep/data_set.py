@@ -7,7 +7,7 @@ from functools import cached_property, reduce
 from pathlib import Path
 from index_calculator import IndexCalculator
 
-import dataprep._delays as _ds
+import dataprep.utils as u
 
 default_rng = np.random.default_rng()
 is_list_like = pd.api.types.is_list_like
@@ -214,7 +214,7 @@ class DataSeries(_DataBase):
             assert self.symbols.isin(data.symbols).all()
 
         @delayed
-        def ad(ix, other): return adapt(ix, other)
+        def ad(ix, other): return u.adapt(ix, other, **kwargs)
         return self.__class__({s: ad(data.get(s).index, d) for s, d in self})
 
     def join(self, with_symbols= True):
@@ -275,16 +275,16 @@ class DataSeries(_DataBase):
         return Data(results)
 
     def missing_sessions(self, schedule, tf):
-        return self._sessions(_ds.missing_sessions, schedule, tf)
+        return self._sessions(u.missing_sessions, schedule, tf)
 
     def incomplete_sessions(self, schedule, tf):
-        return self._sessions(_ds.incomplete_sessions, schedule, tf)
+        return self._sessions(u.incomplete_sessions, schedule, tf)
 
     def incomplete_or_missing_sessions(self, schedule, tf):
-        return self._sessions(_ds.incomplete_or_missing, schedule, tf)
+        return self._sessions(u.incomplete_or_missing, schedule, tf)
 
     def missing_indexes(self, schedule, tf):
-        return self._sessions(_ds.missing_indexes, schedule, tf)
+        return self._sessions(u.missing_indexes, schedule, tf)
 
     def __repr__(self):
         syms = self.symbols[:3]
@@ -374,38 +374,4 @@ class DataSet(DataSeries):
         for s in self.symbols:
             other = value.get(s)
             self.data[s] = _set(self.data[s], key, other[key])
-
-
-    """
-    what do I want
-        missing sessions
-        incomplete sessions
-        missing indexes
-        
-        padding of incomplete
-        padding of missing
-    
-    """
-
-
-    """
-    missing_sessions
-        uses reindexed index column
-        groupby sessions
-        uses .transform(count).eq(0) to determine what ixs are missing   
-        
-        then from the reindexed df, 
-            select missing
-        missing.groupby sessions,
-            cumcount().eq(0) (to get the first row of the df
-        
-    incomplete_sessions
-        
-        
-        
-        
-    
-    missing_indexes
-    """
-
 
