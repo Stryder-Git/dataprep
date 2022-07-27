@@ -317,8 +317,8 @@ match_data = [
     }), dict(norm=False, ffill=False)),  # 1+ nFalse fFalse
 
     (firstset, firstixset, DataSet({
-        "A": pd.Series([3, 4, 4, 6], index= firstix),
-        "B": pd.Series([3, 4, 4, 6], index= firstix)*2
+        "A": pd.Series([3, 4, 4, 6], index= firstix, dtype= float),
+        "B": pd.Series([3, 4, 4, 6], index= firstix, dtype= float)*2
     }), dict(off=0, norm=True, ffill=True)),  # 0 nTrue fTrue
 
     (firstset, firstixset, DataSet({
@@ -347,7 +347,12 @@ def test_match(datas, ixset, expected, kwargs):
     result = result.compute()
     expected = expected.compute()
 
-    assert_series_equal(result, expected)
+    assert result.shape == expected.shape
+    expected.columns = result.columns
+
+    print(type(result), "\n", result)
+    print(type(expected), "\n", expected)
+    assert_frame_equal(result, expected)
 
 
 #
