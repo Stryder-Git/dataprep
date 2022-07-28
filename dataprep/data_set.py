@@ -82,6 +82,8 @@ class _DataBase:
     client = dask
 
     def __init__(self, data):
+        if issubclass(data.__class__, _DataBase):
+            data = data.data
         self.data = data
 
     def _explode(self, ranges):
@@ -196,12 +198,29 @@ class Data(_DataBase):
         rp = {s: self.get(s) for s in self.symbols[:3]}
         return repr(rp)
 
-class DataSeries(_DataBase):
-    _axes = (0,)
-    _frame = False
+
+class DataSet(_DataBase):
+    def __init__(self, data, same_cols= False):
+        super().__init__(data)
+        if same_cols: self.validate()
+
+    def validate(self):
+        first = self.data[self.symbols[0]]
+        cols = first.columns
+        for sym, ddf in self:
+            try:
+                assert self.client.compute((cols == ddf.columns).all()), "Some columns don't match"
+            except AttributeError as e:
+                raise ValueError("Not all are same type") from e
+            cols = ddf.columns
+
+    @cached_property
+    def common_columns(self):
+        comm = reduce(lambda p,c: p[p.isin(c)],
+                      (v.columns for v in self.data.values()))
+        return self._pc(comm)
 
     def _all_equal(self, axis):
-        assert axis in self._axes, "invalid axis argument"
         if self.shapes[axis].nunique() > 1: return False
 
         which = "index" if not axis else "columns"
@@ -213,6 +232,15 @@ class DataSeries(_DataBase):
             ix = _ix
 
         return self._pc(equals.all())
+
+    @property
+    def all_columns(self):
+        cols = self._pc({k: v.columns.tolist() for k, v in self.data.items()})
+        return pd.Series(cols)
+
+    @property
+    def all_columns_equal(self):
+        return self._all_equal(1)
 
     @cached_property
     def index_ranges(self):
@@ -242,10 +270,7 @@ class DataSeries(_DataBase):
 
     def join(self, with_symbols= True):
         if with_symbols:
-            if self._frame:
-                data = [d.assign(symbol= s) for s, d in self]
-            else:
-                data = [d.to_frame().assign(symbol= s) for s, d in self]
+            data = [d.assign(symbol= s) for s, d in self]
 
         else: data = list(self.data.values())
         try: full = dd.from_delayed(data)
@@ -316,40 +341,6 @@ class DataSeries(_DataBase):
             dfs[sym] = self.get(sym).head(2)
 
         return "\n" + repr(pd.concat(self._pc(dfs)))
-
-
-class DataSet(DataSeries):
-    _axes = (0, 1)
-    _frame = True
-
-    def __init__(self, data, same_cols= False):
-        self.data = data
-        if same_cols: self.validate()
-
-    def validate(self):
-        first = self.data[self.symbols[0]]
-        cols = first.columns
-        for sym, ddf in self:
-            try:
-                assert self.client.compute((cols == ddf.columns).all()), "Some columns don't match"
-            except AttributeError as e:
-                raise ValueError("Not all are same type") from e
-            cols = ddf.columns
-
-    @cached_property
-    def common_columns(self):
-        comm = reduce(lambda p,c: p[p.isin(c)],
-                      (v.columns for v in self.data.values()))
-        return self._pc(comm)
-
-    @property
-    def all_columns(self):
-        cols = self._pc({k: v.columns.tolist() for k, v in self.data.items()})
-        return pd.Series(cols)
-
-    @property
-    def all_columns_equal(self):
-        return self._all_equal(1)
 
     def show_issues(self, absolute= True):
         """
