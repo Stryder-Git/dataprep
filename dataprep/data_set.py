@@ -19,7 +19,8 @@ def from_pandas(data, name= None, **kwargs):
     `name` for the name of the resulting column.
 
     :param data: dict containing pandas objects of the same type
-    :param name: a valid name for a DataFrame column or
+    :param name: (only used when pandas objects are not DataFrames)
+        a valid name for a DataFrame column or
         a callable to be applied to the object, returning the name
     :param kwargs: passed to dd.from_pandas constructor
     :return: DataSet
