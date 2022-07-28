@@ -20,7 +20,6 @@ def from_pandas(data, name= None, **kwargs):
     :param kwargs: passed to dd.from_pandas constructor
     :return:
     """
-    if args is None: args = ()
     if kwargs is None: kwargs = {}
     d = data[list(data.keys())[0]]
     if not kwargs: kwargs["npartitions"] = 1

@@ -3,7 +3,7 @@ import pandas as pd
 from pandas.testing import assert_frame_equal, assert_series_equal
 import numpy as np
 import pandas_market_calendars as mcal
-from dataprep import Data, DataSet
+import dataprep as dp
 from dataprep import utils
 
 import dp_tests.utils as u
@@ -59,7 +59,7 @@ test_data = [price_data,]
 
 @pytest.mark.parametrize("data", test_data)
 def test_column_properties(data):
-    ds = DataSet(data)
+    ds = dp.from_pandas(data)
 
     assert ds.all_columns_equal is False
     assert len(ds.common_columns) != ds.all_columns.str.len().max()
@@ -71,7 +71,7 @@ def test_column_properties(data):
 @pytest.mark.parametrize("data", test_data)
 def test_index_properties(data):
 
-    ds = DataSet(data)
+    ds = dp.from_pandas(data)
     assert ds.all_indexes_equal is False
 
     assert_frame_equal(ds.index_ranges,
@@ -90,7 +90,7 @@ def test_index_properties(data):
 
 @pytest.mark.parametrize("data", test_data)
 def test_dataset_properties(data):
-    ds = DataSet(data)
+    ds = dp.from_pandas(data)
 
     commons = len(ds.common_columns)
     assert ds.shape == (len(data), commons)
@@ -121,10 +121,10 @@ sched = pd.DataFrame(dict(
         'C': pd.DatetimeIndex(['2000-01-05 02:00:00+00:00', '2000-01-05 05:00:00+00:00'], dtype='datetime64[ns, UTC]', freq=None)})
 ])
 def test_missing_sessions(data, expected):
-    ds = DataSet(data)
+    ds = dp.from_pandas(data)
     missing = ds.missing_sessions(sched, "1.5H")
 
-    assert isinstance(missing, Data) and not isinstance(missing, DataSet)
+    assert isinstance(missing, dp.Data) and not isinstance(missing, dp.DataSet)
     u.dict_same(missing.compute(), expected)
 
 
@@ -145,10 +145,10 @@ incomplete_data = dict(
         E = pd.DatetimeIndex([], dtype= "datetime64[ns, UTC]", freq= None),
     ))])
 def test_incomplete_sessions(data, expected):
-    ds = DataSet(data)
+    ds = dp.from_pandas(data)
     incomplete = ds.incomplete_sessions(sched, "1.5H")
 
-    assert isinstance(incomplete, Data) and not isinstance(incomplete, DataSet)
+    assert isinstance(incomplete, dp.Data) and not isinstance(incomplete, dp.DataSet)
     u.dict_same(incomplete.compute(), expected)
 
 
@@ -162,10 +162,10 @@ def test_incomplete_sessions(data, expected):
         E = pd.DatetimeIndex([], dtype= "datetime64[ns, UTC]", freq= None)))
 ])
 def test_incomplete_or_missing_sessions(data, expected):
-    ds = DataSet(data)
+    ds = dp.from_pandas(data)
     incomp_miss = ds.incomplete_or_missing_sessions(sched, "1.5H")
 
-    assert isinstance(incomp_miss, Data) and not isinstance(incomp_miss, DataSet)
+    assert isinstance(incomp_miss, dp.Data) and not isinstance(incomp_miss, dp.DataSet)
     u.dict_same(incomp_miss.compute(), expected)
 
 
@@ -180,10 +180,10 @@ def test_incomplete_or_missing_sessions(data, expected):
      ))
 ])
 def test_missing_indexes(data, expected):
-    ds = DataSet(data)
+    ds = dp.from_pandas(data)
     missing = ds.missing_indexes(sched, "1.5H")
 
-    assert isinstance(missing, Data) and not isinstance(missing, DataSet)
+    assert isinstance(missing, dp.Data) and not isinstance(missing, dp.DataSet)
     u.dict_same(missing.compute(), expected)
 
 
@@ -279,59 +279,59 @@ Two datasets with each two dataframes
     
 """
 
-firstixset = DataSet({
+firstixset = dp.from_pandas({
     "A": firstix.to_frame(),
     "B": firstix.to_frame()})
-firstset = DataSet({
+firstset = dp.from_pandas({
     "A": first.to_frame(),
     "B": (first*2).to_frame(),
 })
-secondixset = DataSet({
+secondixset = dp.from_pandas({
     "A": secondix.to_frame(),
     "B": secondix.to_frame()})
-secondset = DataSet({
+secondset = dp.from_pandas({
     "A": second.to_frame(),
     "B": (second*2).to_frame()
 })
 
 
 match_data = [
-    (firstset, firstixset, DataSet({
+    (firstset, firstixset, dp.from_pandas({
         "A": pd.Series([1, 3, 3, 5], index= firstix, dtype= float),
         "B": pd.Series([1, 3, 3, 5], index= firstix, dtype= float)*2
     }), dict(norm=True, ffill=True)),  # 1+ nTrue fTrue
 
-    (firstset, firstixset, DataSet({
+    (firstset, firstixset, dp.from_pandas({
         "A": pd.Series([1, 3, np.nan, 5], index= firstix),
         "B": pd.Series([1, 3, np.nan, 5], index= firstix)*2
     }), dict(norm=True, ffill=False)),  # 1+ nTrue fFalse
 
-    (secondset, secondixset, DataSet({
+    (secondset, secondixset, dp.from_pandas({
         "A": pd.Series([np.nan, 1, 3, 3, 3], index= secondix),
         "B": pd.Series([np.nan, 1, 3, 3, 3], index= secondix)*2
     }), dict(norm=False, ffill=True)),  # 1+ nFalse fTrue
 
-    (secondset, secondixset, DataSet({
+    (secondset, secondixset, dp.from_pandas({
         "A": pd.Series([np.nan, 1, 3, np.nan, np.nan], index= secondix),
         "B": pd.Series([np.nan, 1, 3, np.nan, np.nan], index= secondix)*2
     }), dict(norm=False, ffill=False)),  # 1+ nFalse fFalse
 
-    (firstset, firstixset, DataSet({
+    (firstset, firstixset, dp.from_pandas({
         "A": pd.Series([3, 4, 4, 6], index= firstix, dtype= float),
         "B": pd.Series([3, 4, 4, 6], index= firstix, dtype= float)*2
     }), dict(off=0, norm=True, ffill=True)),  # 0 nTrue fTrue
 
-    (firstset, firstixset, DataSet({
+    (firstset, firstixset, dp.from_pandas({
         "A": pd.Series([3, 4, np.nan, 6], index= firstix),
         "B": pd.Series([3, 4, np.nan, 6], index= firstix)*2
     }), dict(off=0, norm=True, ffill=False)),  # 0 nTrue fFalse
 
-    (secondset, secondixset, DataSet({
+    (secondset, secondixset, dp.from_pandas({
         "A": pd.Series([np.nan, 1, 3, 3, 3], index= secondix),
         "B": pd.Series([np.nan, 1, 3, 3, 3], index= secondix)*2
     }), dict(off=0, norm=False, ffill=True)),  # 0 nFalse fTrue
 
-    (secondset, secondixset, DataSet({
+    (secondset, secondixset, dp.from_pandas({
         "A": pd.Series([np.nan, 1, 3, np.nan, np.nan], index= secondix),
         "B": pd.Series([np.nan, 1, 3, np.nan, np.nan], index= secondix)*2
     }), dict(off=0, norm=False, ffill=False))
