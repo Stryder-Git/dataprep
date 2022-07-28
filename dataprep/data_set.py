@@ -295,8 +295,24 @@ class DataSet(_DataBase):
         if with_sym: return sample
         else: return sample.droplevel(0, axis= 0)
 
-    def _sessions(self, func, schedule, tf):
-        ic = IndexCalculator(schedule, tf)
+    @cached_property
+    def frequencies(self):
+        return pd.Series(self.apply(
+            lambda d: (d.index[1:] - d.index[:-1]).value_counts().idxmax()
+        ).compute())
+
+    @property
+    def all_frequencies_equal(self):
+        return self.frequencies.nunique() == 1
+
+    @property
+    def frequency(self):
+        assert self.all_frequencies_equal, "Not all frequencies are equal"
+        return self.frequencies.iloc[0]
+
+    def _sessions(self, func, schedule, freq):
+        if freq is None: freq = self.frequency
+        ic = IndexCalculator(schedule, freq)
         ranges = self.index_ranges
         sessions = ic.sessions
 
@@ -307,17 +323,17 @@ class DataSet(_DataBase):
 
         return Data(results)
 
-    def missing_sessions(self, schedule, tf):
-        return self._sessions(u.missing_sessions, schedule, tf)
+    def missing_sessions(self, schedule, freq= None):
+        return self._sessions(u.missing_sessions, schedule, freq)
 
-    def incomplete_sessions(self, schedule, tf):
-        return self._sessions(u.incomplete_sessions, schedule, tf)
+    def incomplete_sessions(self, schedule, freq= None):
+        return self._sessions(u.incomplete_sessions, schedule, freq)
 
-    def incomplete_or_missing_sessions(self, schedule, tf):
-        return self._sessions(u.incomplete_or_missing, schedule, tf)
+    def incomplete_or_missing_sessions(self, schedule, freq= None):
+        return self._sessions(u.incomplete_or_missing, schedule, freq)
 
-    def missing_indexes(self, schedule, tf):
-        return self._sessions(u.missing_indexes, schedule, tf)
+    def missing_indexes(self, schedule, freq= None):
+        return self._sessions(u.missing_indexes, schedule, freq)
 
     def __repr__(self):
         syms = self.symbols[:3]

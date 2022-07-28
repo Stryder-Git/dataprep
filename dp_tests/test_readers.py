@@ -14,7 +14,6 @@ def test_from_pandas_df():
     data = dp.from_pandas(datafs)
     assert isinstance(data, dp.DataSet)
     assert data.all_columns_equal
-    assert data.all_columns_equal
 
     orig_names = {k: d.columns for k, d in datafs.items()}
     names = {k: d.columns for k, d in datafs.items()}

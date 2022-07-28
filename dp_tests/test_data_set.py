@@ -70,7 +70,6 @@ def test_column_properties(data):
 
 @pytest.mark.parametrize("data", test_data)
 def test_index_properties(data):
-
     ds = dp.from_pandas(data)
     assert ds.all_indexes_equal is False
 
@@ -89,7 +88,7 @@ def test_index_properties(data):
 
 
 @pytest.mark.parametrize("data", test_data)
-def test_dataset_properties(data):
+def test_shapes(data):
     ds = dp.from_pandas(data)
 
     commons = len(ds.common_columns)
@@ -101,8 +100,17 @@ def test_dataset_properties(data):
                         1: pd.Series([4, 3, 4, 4, 4])
                         }).set_index(pd.Index(['A', 'B', 'C', 'D', 'E'])))
 
-
     assert list(ds.symbols) == list(data.keys())
+
+@pytest.mark.parametrize("data", test_data)
+def test_frequencies(data):
+    ds = dp.from_pandas(data)
+
+    assert ds.all_frequencies_equal
+    assert_series_equal(ds.frequencies,
+                        pd.Series({k: pd.Timedelta("1.5H") for k in data.keys()}))
+    assert ds.frequency == pd.Timedelta("1.5H")
+
 
 sched = pd.DataFrame(dict(
     market_open = ['2000-01-03 02:00:00', '2000-01-04 03:00:00', '2000-01-05 02:00:00', '2000-01-06 02:00:00', '2000-01-07 02:00:00'],
@@ -122,7 +130,7 @@ sched = pd.DataFrame(dict(
 ])
 def test_missing_sessions(data, expected):
     ds = dp.from_pandas(data)
-    missing = ds.missing_sessions(sched, "1.5H")
+    missing = ds.missing_sessions(sched)
 
     assert isinstance(missing, dp.Data) and not isinstance(missing, dp.DataSet)
     u.dict_same(missing.compute(), expected)
@@ -146,7 +154,7 @@ incomplete_data = dict(
     ))])
 def test_incomplete_sessions(data, expected):
     ds = dp.from_pandas(data)
-    incomplete = ds.incomplete_sessions(sched, "1.5H")
+    incomplete = ds.incomplete_sessions(sched)
 
     assert isinstance(incomplete, dp.Data) and not isinstance(incomplete, dp.DataSet)
     u.dict_same(incomplete.compute(), expected)
@@ -163,7 +171,7 @@ def test_incomplete_sessions(data, expected):
 ])
 def test_incomplete_or_missing_sessions(data, expected):
     ds = dp.from_pandas(data)
-    incomp_miss = ds.incomplete_or_missing_sessions(sched, "1.5H")
+    incomp_miss = ds.incomplete_or_missing_sessions(sched)
 
     assert isinstance(incomp_miss, dp.Data) and not isinstance(incomp_miss, dp.DataSet)
     u.dict_same(incomp_miss.compute(), expected)
@@ -181,7 +189,7 @@ def test_incomplete_or_missing_sessions(data, expected):
 ])
 def test_missing_indexes(data, expected):
     ds = dp.from_pandas(data)
-    missing = ds.missing_indexes(sched, "1.5H")
+    missing = ds.missing_indexes(sched)
 
     assert isinstance(missing, dp.Data) and not isinstance(missing, dp.DataSet)
     u.dict_same(missing.compute(), expected)
