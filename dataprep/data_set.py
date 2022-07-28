@@ -21,8 +21,7 @@ def from_pandas(data, name= None, **kwargs):
 
     :param data: dict containing pandas objects of the same type
     :param name: (only used when pandas objects are not DataFrames)
-        a valid name for a DataFrame column or
-        a callable to be applied to the object, returning the name
+        a valid name for a DataFrame column
     :param kwargs: passed to dd.from_pandas constructor
     :return: DataSet
     """
@@ -32,14 +31,8 @@ def from_pandas(data, name= None, **kwargs):
 
     if isinstance(d, pd.DataFrame):
         maker = lambda x: dd.from_pandas(x, **kwargs)
-
     elif isinstance(d, (pd.Series, pd.Index)):
-        if callable(name):
-            maker = lambda x: dd.from_pandas(x.to_frame(name=name(x)),
-                                             **kwargs)
-        else:
-            maker = lambda x: dd.from_pandas(x.to_frame(name=name),
-                                             **kwargs)
+        maker = lambda x: dd.from_pandas(x.to_frame(name=name), **kwargs)
     else:
         raise ValueError("Needs to be pandas object")
 
@@ -194,10 +187,12 @@ class Data(_DataBase):
     def persist(self):
         return self._pc(func= self.client.persist)
 
+    def to_frame(self, name= None):
+        return self(lambda d: d.to_frame(name= name))
+
     def __repr__(self):
         rp = {s: self.get(s) for s in self.symbols[:3]}
         return repr(rp)
-
 
 class DataSet(_DataBase):
     def __init__(self, data, same_cols= False):
