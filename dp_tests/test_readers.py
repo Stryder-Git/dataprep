@@ -31,16 +31,12 @@ seriesn = {k: pd.Series(s, name= "name") for k, s in series.items()}
 
 @pytest.mark.parametrize("data, name, result", [
     (index, None, dict(A= 0, B= 0)),
-    (index, lambda d: str(d.dtype), dict(A= "datetime64[ns]", B= "datetime64[ns]")),
     (index, "dtindex", dict(A= "dtindex", B= "dtindex")),
 
     (series, None, dict(A= 0, B= 0)),
+    (series, "other", dict(A="other", B="other")),
+
     (seriesn, None, dict(A= "name", B= "name")),
-
-    (series, lambda d: str(d.dtype), dict(A= "int64", B= "int64")),
-    (seriesn, lambda d: str(d.dtype), dict(A= "int64", B= "int64")),
-
-    (series, "other", dict(A= "other", B= "other")),
     (seriesn, "other", dict(A= "other", B= "other")),
 ])
 def test_from_pandas_other(data, name, result):
