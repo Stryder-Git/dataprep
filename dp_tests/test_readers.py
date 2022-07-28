@@ -53,6 +53,31 @@ def test_from_pandas_other(data, name, result):
     assert_series_equal(data.all_columns, result)
 
 
+@pytest.mark.parametrize("files, name, dtindex", [
+    ("dp_tests\\sample_data", lambda p: p.split(".")[0], None),
+    (["dp_tests\\sample_data\\A.csv", "dp_tests\\sample_data\\B.csv"], lambda p: p.split(".")[0][-1], None),
+
+    ("dp_tests\\sample_data", lambda p: p.split(".")[0], "Unnamed: 0"),
+    (["dp_tests\\sample_data\\A.csv", "dp_tests\\sample_data\\B.csv"], lambda p: p.split(".")[0][-1], "Unnamed: 0"),
+])
+
+def test_from_files(files, name, dtindex):
+    data = dp.from_files(files, name, dtindex= dtindex)
+
+    assert (data.symbols == ["A", "B"]).all()
+
+    columns = ["a", "b"]
+    noix = dtindex is None
+    if noix: columns.insert(0, "Unnamed: 0")
+
+    assert data.all_columns_equal
+    assert (data.common_columns == columns).all()
+
+    if noix: return
+    ixdtype = data.apply(lambda d: d.index.dtype.name).compute()
+    ixdtype  == {"A": "datetime64[ns]", "B": "datetime64[ns]"}
+
+
 
 
 

@@ -1,3 +1,4 @@
+import os
 import dask
 import dask.dataframe as dd
 from dask.delayed import delayed
@@ -44,20 +45,37 @@ def from_pandas(data, name= None, **kwargs):
 
     return DataSet({s: maker(d) for s, d in data.items()})
 
-def from_files(*files, name= None):
+def from_files(files, name, dtindex= None, **kwargs):
     """
     assumes that all files are of same type: .csv, else parquet
 
-    :param files:
-    :param name:
+    :param files: iterable of filenames to retrieve, or str implying a folder
+    :param name: function to extract name from filename, if `files` is a folder
+        this will only be applied on the filenames. If `files` is an iterable of
+        paths, it will be applied on the paths given by the user.
+    :param dtindex: str indicating datetime column to be used as index
     :return:
     """
-    if name is None: name = lambda p: Path(p).parts[-1].split(".")[0]
+    assert callable(name), "`name` needs to be a callable"
+
+    if isinstance(files, str):
+        files = [files + "\\" + f for f in os.listdir(files)]
+        n = name
+        name = lambda p: n(Path(p).parts[-1])
 
     syms = list(map(name, files))
-    assert len(set(syms)) == len(files)
+    assert len(set(syms)) == len(syms)
     reader = dd.read_csv if files[0].endswith(".csv") else dd.read_parquet
-    return DataSet({s: reader(f, *args, **kwargs) for s, f in zip(syms, files)})
+    ds = {s: reader(f, **kwargs) for s, f in zip(syms, files)}
+    if dtindex is None: return DataSet(ds)
+
+    @delayed()
+    def makeix(d):
+        ix = pd.to_datetime(d.pop(dtindex))
+        return d.set_index(ix, drop= True)
+
+    return DataSet({s: makeix(d) for s, d in ds.items()})
+
 
 
 class _DataBase:
