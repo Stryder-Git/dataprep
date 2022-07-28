@@ -71,8 +71,7 @@ class _DataBase:
 
     @cached_property
     def shapes(self):
-        shapes = self.client.compute({s: d.shape for s, d in self})
-        if isinstance(shapes, tuple): shapes = shapes[0]
+        shapes = self._pc({s: d.shape for s, d in self})
         return self._explode(shapes).astype(np.int64)
 
     @property
@@ -81,18 +80,21 @@ class _DataBase:
 
     def apply(self, func, *args, pass_sym= False, **kwargs):
         func = delayed(func)
-        if pass_sym: return {s: func(d, s, *args, **kwargs) for s, d in self}
-        else: return {s: func(d, *args, **kwargs) for s, d in self}
+        if pass_sym: return Data({s: func(d, s, *args, **kwargs) for s, d in self})
+        else: return Data({s: func(d, *args, **kwargs) for s, d in self})
+
+    def _pc(self, what=None, func= None):
+        func = self.client.compute if func is None else func
+        res = func(self.data if what is None else what)
+        if isinstance(res, tuple): return res[0]
+        return res
 
     def persist(self):
-        pers = self.client.persist(self.data)
-        if isinstance(pers, tuple): pers = pers[0]
+        pers = self._pc(func= self.client.persist)
         return self.__class__(pers)
 
     def compute(self):
-        comped = self.client.compute(self.data)
-        if isinstance(comped, tuple): return pd.concat(comped[0])
-        return pd.concat(comped.result())
+        return pd.concat(self._pc())
 
     def get(self, sym, wrap= False):
         if wrap: return self.__class__({sym: self.data[sym]})
@@ -157,14 +159,10 @@ class _DataBase:
 
 class Data(_DataBase):
     def compute(self):
-        res = self.client.compute(self.data)
-        if isinstance(res, tuple): return res[0]
-        return res
+        return self._pc()
 
     def persist(self):
-        res = self.client.persist(self.data)
-        if isinstance(res, tuple): return res[0]
-        return res
+        return self._pc(func= self.client.persist)
 
     def __repr__(self):
         rp = {s: self.get(s) for s in self.symbols[:3]}
@@ -186,15 +184,12 @@ class DataSeries(_DataBase):
             equals &= _ix == ix
             ix = _ix
 
-        equals = self.client.compute(equals.all())
-        if isinstance(equals, tuple): return equals[0]
-        return equals
+        return self._pc(equals.all())
 
     @cached_property
     def index_ranges(self):
-        ranges = self.client.compute({s: (self.get(s).index.min(), self.get(s).index.max())
-                                      for s in self.symbols})
-        if isinstance(ranges, tuple): ranges = ranges[0]
+        ranges = self._pc({s: (self.get(s).index.min(), self.get(s).index.max())
+                           for s in self.symbols})
         return self._explode(ranges)
 
     @property
@@ -292,9 +287,7 @@ class DataSeries(_DataBase):
         for sym in syms:
             dfs[sym] = self.get(sym).head(2)
 
-        dfs = self.client.compute(dfs)
-        if isinstance(dfs, tuple): dfs = dfs[0]
-        return "\n" + repr(pd.concat(dfs))
+        return "\n" + repr(pd.concat(self._pc(dfs)))
 
 
 class DataSet(DataSeries):
@@ -317,12 +310,14 @@ class DataSet(DataSeries):
 
     @cached_property
     def common_columns(self):
-        return reduce(lambda p,c: p[p.isin(c)],
+        comm = reduce(lambda p,c: p[p.isin(c)],
                       (v.columns for v in self.data.values()))
+        return self._pc(comm)
 
     @property
     def all_columns(self):
-        return pd.Series({k: v.columns.tolist() for k, v in self.data.items()})
+        cols = self._pc({k: v.columns.tolist() for k, v in self.data.items()})
+        return pd.Series(cols)
 
     @property
     def all_columns_equal(self):
@@ -347,8 +342,7 @@ class DataSet(DataSeries):
             def show(d): return issues(d)/d.shape[0]
 
         show = delayed(show)
-        results = self.client.compute({s: show(d) for s, d in self})
-        if isinstance(results, tuple): results = results[0]
+        results = self._pc({s: show(d) for s, d in self})
         return pd.concat(results).unstack(-1)
 
     def __getitem__(self, item):
