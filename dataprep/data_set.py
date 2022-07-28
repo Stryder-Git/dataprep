@@ -79,24 +79,6 @@ class _DataBase:
             data = data.data
         self.data = data
 
-    def _explode(self, ranges):
-        ranges = pd.Series(ranges).explode()
-        assert ranges.index.value_counts().eq(2).all()
-        return pd.DataFrame({0: ranges[::2], 1: ranges[1::2]})
-
-    @property
-    def shape(self):
-        return len(self), len(self.common_columns)
-
-    @property
-    def fshape(self):
-        return self.shapes[0].sum(), len(self.common_columns)
-
-    @cached_property
-    def shapes(self):
-        shapes = self._pc({s: d.shape for s, d in self})
-        return self._explode(shapes).astype(np.int64)
-
     @property
     def symbols(self):
         return pd.Index(self.data.keys())
@@ -132,10 +114,6 @@ class _DataBase:
         else:
             new = self.data.copy()
         return self.__class__(new)
-
-    def drop_empties(self):
-        shapes = self._shapes
-        return self.__class__({s: self.get(s) for s, shape in shapes.items() if shape[0]})
 
     def drop(self, symbols):
         syms = self.symbols
@@ -197,17 +175,30 @@ class Data(_DataBase):
 class DataSet(_DataBase):
     def __init__(self, data, same_cols= False):
         super().__init__(data)
-        if same_cols: self.validate()
+        if same_cols:
+            assert self.all_columns_equal
 
-    def validate(self):
-        first = self.data[self.symbols[0]]
-        cols = first.columns
-        for sym, ddf in self:
-            try:
-                assert self.client.compute((cols == ddf.columns).all()), "Some columns don't match"
-            except AttributeError as e:
-                raise ValueError("Not all are same type") from e
-            cols = ddf.columns
+    def _explode(self, ranges):
+        ranges = pd.Series(ranges).explode()
+        assert ranges.index.value_counts().eq(2).all()
+        return pd.DataFrame({0: ranges[::2], 1: ranges[1::2]})
+
+    @property
+    def shape(self):
+        return len(self), len(self.common_columns)
+
+    @property
+    def fshape(self):
+        return self.shapes[0].sum(), len(self.common_columns)
+
+    @cached_property
+    def shapes(self):
+        shapes = self._pc({s: d.shape for s, d in self})
+        return self._explode(shapes).astype(np.int64)
+
+    def drop_empties(self):
+        shapes = self._shapes
+        return self.__class__({s: self.get(s) for s, shape in shapes.items() if shape[0]})
 
     @cached_property
     def common_columns(self):
@@ -294,8 +285,7 @@ class DataSet(_DataBase):
             sample[sym] = self.data[sym].iloc[ixs]
             ixs -= r
 
-        if isinstance(sample, tuple): sample = sample[0]
-        sample = pd.concat(sample)
+        sample = pd.concat(self._pc(sample))
 
         if shuffle:
             ixs = np.arange(n)
