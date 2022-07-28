@@ -279,20 +279,10 @@ Two datasets with each two dataframes
     
 """
 
-firstixset = dp.from_pandas({
-    "A": firstix.to_frame(),
-    "B": firstix.to_frame()})
-firstset = dp.from_pandas({
-    "A": first.to_frame(),
-    "B": (first*2).to_frame(),
-})
-secondixset = dp.from_pandas({
-    "A": secondix.to_frame(),
-    "B": secondix.to_frame()})
-secondset = dp.from_pandas({
-    "A": second.to_frame(),
-    "B": (second*2).to_frame()
-})
+firstixset = dp.from_pandas({"A": firstix, "B": firstix})
+firstset = dp.from_pandas({"A": first, "B": first*2,})
+secondixset = dp.from_pandas({"A": secondix, "B": secondix})
+secondset = dp.from_pandas({"A": second, "B": second*2})
 
 
 match_data = [
@@ -340,8 +330,6 @@ match_data = [
 
 @pytest.mark.parametrize("datas, ixset, expected, kwargs", match_data)
 def test_match(datas, ixset, expected, kwargs):
-
-    expected = expected(lambda d: d.to_frame())
 
     result = datas.match(ixset, **kwargs)
     result = result.compute()

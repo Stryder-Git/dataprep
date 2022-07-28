@@ -14,24 +14,34 @@ is_list_like = pd.api.types.is_list_like
 
 def from_pandas(data, name= None, **kwargs):
     """
-    Assumes that all values of `data` are of the same type
+    Assumes that all values of `data` are of the same type.
+    If that is a pd.Series or pd.Index, it will be converted to a DataFrame, using
+    `name` for the name of the resulting column.
 
-    :param data: dict containing pandas object
+    :param data: dict containing pandas objects of the same type
+    :param name: a valid name for a DataFrame column or
+        a callable to be applied to the object, returning the name
     :param kwargs: passed to dd.from_pandas constructor
-    :return:
+    :return: DataSet
     """
     if kwargs is None: kwargs = {}
     d = data[list(data.keys())[0]]
     if not kwargs: kwargs["npartitions"] = 1
 
     if isinstance(d, pd.DataFrame):
-        cls = DataSet
-    elif isinstance(d, pd.Series):
-        cls = DataSeries
+        maker = lambda x: dd.from_pandas(x, **kwargs)
+
+    elif isinstance(d, (pd.Series, pd.Index)):
+        if callable(name):
+            maker = lambda x: dd.from_pandas(x.to_frame(name=name(x)),
+                                             **kwargs)
+        else:
+            maker = lambda x: dd.from_pandas(x.to_frame(name=name),
+                                             **kwargs)
     else:
         raise ValueError("Needs to be pandas object")
 
-    return cls({s: dd.from_pandas(d, **kwargs) for s, d in data.items()})
+    return DataSet({s: maker(d) for s, d in data.items()})
 
 def from_files(*files, name= None):
     """
