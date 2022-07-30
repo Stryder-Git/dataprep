@@ -197,8 +197,9 @@ class DataSet(_DataBase):
         return self._explode(shapes).astype(np.int64)
 
     def drop_empties(self):
-        shapes = self._shapes
-        return self.__class__({s: self.get(s) for s, shape in shapes.items() if shape[0]})
+        shapes = self.shapes
+        syms = shapes.index[shapes[0].gt(0)]
+        return self.select(syms)
 
     @cached_property
     def common_columns(self):
@@ -296,6 +297,19 @@ class DataSet(_DataBase):
         else: return sample.droplevel(0, axis= 0)
 
     @cached_property
+    def timezones(self):
+        return pd.Series(self.apply(lambda d: d.index.tz).compute())
+
+    @property
+    def all_timezones_equal(self):
+        return self.timezones.nunique(dropna= False) == 1
+
+    @property
+    def timezone(self):
+        assert self.all_timezones_equal, "Not all timezones are equal"
+        return self.timezones.iloc[0]
+
+    @cached_property
     def frequencies(self):
         return pd.Series(self.apply(
             lambda d: (d.index[1:] - d.index[:-1]).value_counts().idxmax()
@@ -311,7 +325,11 @@ class DataSet(_DataBase):
         return self.frequencies.iloc[0]
 
     def _sessions(self, func, schedule, freq):
+        if pd.isna(self.timezone):
+            assert schedule.apply(lambda c: c.dt.tz).isna().all(), "Cannot use a tz aware schedule on tz naive data"
+
         if freq is None: freq = self.frequency
+        name = func.__name__
         ic = IndexCalculator(schedule, freq)
         ranges = self.index_ranges
         sessions = ic.sessions
@@ -319,9 +337,10 @@ class DataSet(_DataBase):
         results = {}
         for s, d in self:
             rs = ranges.loc[s]
-            results[s] = func(d.index, ic.timex(frm=rs[0], to=rs[1]), sessions)
+            results[s] = func(d.index, ic.timex(frm=rs[0], to=rs[1]), sessions
+                              ).to_frame(name= name)
 
-        return Data(results)
+        return DataSet(results)
 
     def missing_sessions(self, schedule, freq= None):
         return self._sessions(u.missing_sessions, schedule, freq)
