@@ -44,9 +44,10 @@ def from_files(files, name, dtindex= None, **kwargs):
 
     :param files: iterable of filenames to retrieve, or str implying a folder
     :param name: function to extract name from filename, if `files` is a folder
-        this will only be applied on the filenames. If `files` is an iterable of
-        paths, it will be applied on the paths given by the user.
-    :param dtindex: str indicating datetime column to be used as index
+        this will only be applied to the filenames. If `files` is an iterable of
+        paths, it will be applied to the paths given by the user.
+    :param dtindex: str indicating datetime column to be used as index, pass None
+        to skip this
     :return:
     """
     assert callable(name), "`name` needs to be a callable"
@@ -62,13 +63,8 @@ def from_files(files, name, dtindex= None, **kwargs):
     ds = {s: reader(f, **kwargs) for s, f in zip(syms, files)}
     if dtindex is None: return DataSet(ds)
 
-    @delayed()
-    def makeix(d):
-        ix = pd.to_datetime(d.pop(dtindex))
-        return d.set_index(ix, drop= True)
-
-    return DataSet({s: makeix(d) for s, d in ds.items()})
-
+    return DataSet({s: d.set_index(dd.to_datetime(d.pop(dtindex)),
+                                   drop= True) for s, d in ds.items()})
 
 
 class _DataBase:
@@ -198,8 +194,7 @@ class DataSet(_DataBase):
 
     def drop_empties(self):
         shapes = self.shapes
-        syms = shapes.index[shapes[0].gt(0)]
-        return self.select(syms)
+        return self.select(shapes.index[shapes[0].gt(0)])
 
     @cached_property
     def common_columns(self):
@@ -226,6 +221,12 @@ class DataSet(_DataBase):
         return pd.Series(cols)
 
     @property
+    def columns(self):
+        assert self.all_columns_equal, "Not all columns are equal, " \
+                                       "use the properties all_columns and common_columns to inspect this"
+        return self.common_columns
+
+    @property
     def all_columns_equal(self):
         return self._all_equal(1)
 
@@ -239,7 +240,48 @@ class DataSet(_DataBase):
     def all_indexes_equal(self):
         return self._all_equal(0)
 
-    def match(self, data, same_syms= True, name= None, **kwargs):
+    @cached_property
+    def timezones(self):
+        return pd.Series(self.apply(lambda d: d.index.tz).compute())
+
+    @property
+    def all_timezones_equal(self):
+        return self.timezones.nunique(dropna= False) == 1
+
+    @property
+    def timezone(self):
+        assert self.all_timezones_equal, "Not all timezones are equal"
+        return self.timezones.iloc[0]
+
+    @cached_property
+    def frequencies(self):
+        return pd.Series(self.apply(
+            lambda d: (d.index[1:] - d.index[:-1]).value_counts().idxmax()
+        ).compute())
+
+    @property
+    def all_frequencies_equal(self):
+        return self.frequencies.nunique() == 1
+
+    @property
+    def frequency(self):
+        assert self.all_frequencies_equal, "Not all frequencies are equal"
+        return self.frequencies.iloc[0]
+
+
+    def set_timezone(self, tz):
+        """
+        Converts timezone if dataframe is tz aware and localizes otherwise.
+        :param tz:
+        :return:
+        """
+        def settz(d):
+            try: return d.tz_convert(tz)
+            except TypeError: return d.tz_localize(tz)
+        return self(settz)
+
+
+    def match(self, data, same_syms= True, **kwargs):
         """
         Will match each dask.dataframe in self with the index of the
         dataframe in data that has the same symbol
@@ -295,34 +337,6 @@ class DataSet(_DataBase):
 
         if with_sym: return sample
         else: return sample.droplevel(0, axis= 0)
-
-    @cached_property
-    def timezones(self):
-        return pd.Series(self.apply(lambda d: d.index.tz).compute())
-
-    @property
-    def all_timezones_equal(self):
-        return self.timezones.nunique(dropna= False) == 1
-
-    @property
-    def timezone(self):
-        assert self.all_timezones_equal, "Not all timezones are equal"
-        return self.timezones.iloc[0]
-
-    @cached_property
-    def frequencies(self):
-        return pd.Series(self.apply(
-            lambda d: (d.index[1:] - d.index[:-1]).value_counts().idxmax()
-        ).compute())
-
-    @property
-    def all_frequencies_equal(self):
-        return self.frequencies.nunique() == 1
-
-    @property
-    def frequency(self):
-        assert self.all_frequencies_equal, "Not all frequencies are equal"
-        return self.frequencies.iloc[0]
 
     def _sessions(self, func, schedule, freq):
         if pd.isna(self.timezone):
