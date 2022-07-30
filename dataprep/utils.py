@@ -11,49 +11,9 @@ import warnings
 #                            holidays= _nyse.adhoc_holidays,
 #                            calendar= _nyse.regular_holidays)
 
-def adapt(ix, data, off=0, day= pd.Timedelta("1D"), norm=False, ffill= False, fromix= False):
-    """
-    This function maps each data point of `adapt` to the equal or next larger index
-    in `ix`, after normalizing and/or adding `off` * `day` to adapt.index.
+@delayed
+def adapt(data, ix, off=0, day= pd.Timedelta("1D"), norm=False, ffill= False, fromix= False):
 
-    CAVEAT:
-
-    This operation will *not* necessarily keep all data points from `adapt`. Therefore it is important
-    to use absolute values. E.g.: use reported revenue and not yearly revenue growth.
-    Although, a warning will be raised if something is lost.
-
-        If there are two data points of `adapt` between two indexes of `ix`, only the last data point
-        will be kept:
-            import research_environment as renv
-            import pandas as pd
-
-            ix = pd.DatetimeIndex(["2000-01-01", "2000-06-01"])
-            data = pd.Series({"2000-01-05": 1, "2000-03-05": 2})
-            data.index = pd.to_datetime(data.index)
-
-            renv.utils.adapt(ix, data)
-            >>
-             2000-01-01 NaN
-             2000-06-01 2
-
-    Parameters
-    ----------
-    off : int, default 1
-        how many times to add `day` to adapt.index before adapting
-    norm : bool, default True
-        Normalize index to midnight before adapting.
-    ffill : bool, default True
-        fill all values for `ix`, else keep only values that are new.
-    fromix : bool, default False
-        return as DataFrame containing a "fromix" column holding the indexes of adapt
-        that the values are from, ffill also applies to this.
-        This column will contain the original dates (before norm/off was applied).
-
-    Returns
-    -------
-    pandas.Series if not fromix (default) else pandas.DataFrame
-
-    """
     assert ix.is_monotonic_increasing and not ix.duplicated().any()
     ndim = data.ndim
     if ndim == 1: data = data.to_frame()
@@ -65,8 +25,8 @@ def adapt(ix, data, off=0, day= pd.Timedelta("1D"), norm=False, ffill= False, fr
     if off: data.index += off * day
 
     duplicated = data.index.duplicated(keep="last")
-    if duplicated.any():
-        data = data[~data.index.duplicated(keep="last")]
+    warn = duplicated.any()
+    if warn: data = data[~data.index.duplicated(keep="last")]
 
     data = data.reindex(ix.union(data.index)).ffill()
     if ffill: data = data.loc[ix]
@@ -75,7 +35,7 @@ def adapt(ix, data, off=0, day= pd.Timedelta("1D"), norm=False, ffill= False, fr
         notnew = data.fromix.eq(data.fromix.shift(1))
         data.loc[notnew] = np.nan
 
-    if not orig_index.isin(data.fromix).all():
+    if warn or not orig_index.isin(data.fromix).all():
         warnings.warn("Some values are lost")
 
     if fromix: return data

@@ -281,21 +281,56 @@ class DataSet(_DataBase):
         return self(settz)
 
 
-    def match(self, data, same_syms= True, **kwargs):
+    def match(self, data, off=0, day= pd.Timedelta("1D"), norm=False, ffill= False, fromix= False):
         """
-        Will match each dask.dataframe in self with the index of the
-        dataframe in data that has the same symbol
-        """
-        if same_syms:
-            syms = self.symbols.sort_values()
-            other_syms = data.symbols.sort_values()
-            assert len(other_syms) == len(syms) and (other_syms == syms).all()
-        else:
-            assert self.symbols.isin(data.symbols).all()
+        Will match each dataframe in self with the index of the dataframe in data that shares the symbol.
+        The data will be matched to the equal or next larger index.
 
-        @delayed
-        def ad(ix, other): return u.adapt(ix, other, **kwargs)
-        return self.__class__({s: ad(data.get(s).index, d) for s, d in self})
+        CAVEAT:
+
+        This operation will *not* necessarily keep all data points. Therefore it is important
+        to use absolute values. E.g.: use reported revenue and not yearly revenue growth.
+        Although, a warning will be raised if something is lost.
+
+            If there are two data points of `adapt` between two indexes of `ix`, only the last data point
+            will be kept:
+                import research_environment as renv
+                import pandas as pd
+
+                ix = pd.DatetimeIndex(["2000-01-01", "2000-06-01"])
+                data = pd.Series({"2000-01-05": 1, "2000-03-05": 2})
+                data.index = pd.to_datetime(data.index)
+
+                renv.utils.adapt(ix, data)
+                >>
+                 2000-01-01 NaN
+                 2000-06-01 2
+
+        Parameters
+        ----------
+        off : int, default 1
+            how many times to add `day` to the data's index before matching
+        norm : bool, default True
+            Normalize data's index to midnight before adapting.
+        ffill : bool, default True
+            fill all values for `ix`, else keep only values that are new.
+        fromix : bool, default False
+            return as DataFrame containing a "fromix" column holding the indexes of adapt
+            that the values are from, ffill also applies to this.
+            This column will contain the original dates (before norm/off was applied).
+
+        Returns
+        -------
+        pandas.Series if not fromix (default) else pandas.DataFrame
+
+
+
+        """
+        assert self.symbols.isin(data.symbols).all()
+        data = data.data
+        return self.__class__({s: u.adapt(d, data[s].index, off= off, day= day,
+                                          norm= norm, ffill= ffill, fromix= fromix)
+                               for s, d in self})
 
     def join(self, with_symbols= True):
         if with_symbols:

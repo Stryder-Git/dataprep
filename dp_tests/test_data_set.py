@@ -274,7 +274,7 @@ what are kwarg permutations
 @pytest.mark.parametrize("index, data, result, kw", adapt_results)
 def test_adpat(index, data, result, kw):
     result.index = index
-    calced = utils.adapt(index, data, **kw)
+    calced = utils.adapt(data, index, **kw).compute()
 
     equals = result.eq(calced.fillna(-1), fill_value=-1).all()
     if kw.get("fromix", False) is True:
