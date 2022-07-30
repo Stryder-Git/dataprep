@@ -349,7 +349,7 @@ class DataSet(_DataBase):
         return self._sessions(u.incomplete_sessions, schedule, freq)
 
     def incomplete_or_missing_sessions(self, schedule, freq= None):
-        return self._sessions(u.incomplete_or_missing, schedule, freq)
+        return self._sessions(u.incomplete_or_missing_sessions, schedule, freq)
 
     def missing_indexes(self, schedule, freq= None):
         return self._sessions(u.missing_indexes, schedule, freq)

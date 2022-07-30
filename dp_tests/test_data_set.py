@@ -132,8 +132,9 @@ def test_missing_sessions(data, expected):
     ds = dp.from_pandas(data)
     missing = ds.missing_sessions(sched)
 
-    assert isinstance(missing, dp.Data) and not isinstance(missing, dp.DataSet)
-    u.dict_same(missing.compute(), expected)
+    assert isinstance(missing, dp.DataSet)
+    assert_frame_equal(missing.compute(),
+                       dp.Data(expected).to_frame(name= "missing_sessions").compute())
 
 
 incomplete_data = dict(
@@ -156,8 +157,9 @@ def test_incomplete_sessions(data, expected):
     ds = dp.from_pandas(data)
     incomplete = ds.incomplete_sessions(sched)
 
-    assert isinstance(incomplete, dp.Data) and not isinstance(incomplete, dp.DataSet)
-    u.dict_same(incomplete.compute(), expected)
+    assert isinstance(incomplete, dp.DataSet)
+    assert_frame_equal(incomplete.compute(),
+                       dp.Data(expected).to_frame(name= "incomplete_sessions").compute())
 
 
 @pytest.mark.parametrize("data, expected", [
@@ -173,8 +175,9 @@ def test_incomplete_or_missing_sessions(data, expected):
     ds = dp.from_pandas(data)
     incomp_miss = ds.incomplete_or_missing_sessions(sched)
 
-    assert isinstance(incomp_miss, dp.Data) and not isinstance(incomp_miss, dp.DataSet)
-    u.dict_same(incomp_miss.compute(), expected)
+    assert isinstance(incomp_miss, dp.DataSet)
+    assert_frame_equal(incomp_miss.compute(),
+                       dp.Data(expected).to_frame(name= "incomplete_or_missing_sessions").compute())
 
 
 @pytest.mark.parametrize("data, expected", [
@@ -191,8 +194,9 @@ def test_missing_indexes(data, expected):
     ds = dp.from_pandas(data)
     missing = ds.missing_indexes(sched)
 
-    assert isinstance(missing, dp.Data) and not isinstance(missing, dp.DataSet)
-    u.dict_same(missing.compute(), expected)
+    assert isinstance(missing, dp.DataSet)
+    assert_frame_equal(missing.compute(),
+                       dp.Data(expected).to_frame(name= "missing_indexes").compute())
 
 
 # for teting
