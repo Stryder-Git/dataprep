@@ -6,14 +6,12 @@ from pandas_market_calendars import get_calendar
 from pandas.tseries.offsets import CustomBusinessDay
 import warnings
 
-_nyse = get_calendar("NYSE")
-nyse_busday = CustomBusinessDay(weekmask= "1111100",
-                           holidays= _nyse.adhoc_holidays,
-                           calendar= _nyse.regular_holidays)
+# _nyse = get_calendar("NYSE")
+# nyse_busday = CustomBusinessDay(weekmask= "1111100",
+#                            holidays= _nyse.adhoc_holidays,
+#                            calendar= _nyse.regular_holidays)
 
-one_day = pd.Timedelta("1D")
-
-def adapt(ix, data, off=1, day= one_day, norm=True, ffill= False, fromix= False):
+def adapt(ix, data, off=0, day= pd.Timedelta("1D"), norm=False, ffill= False, fromix= False):
     """
     This function maps each data point of `adapt` to the equal or next larger index
     in `ix`, after normalizing and/or adding `off` * `day` to adapt.index.

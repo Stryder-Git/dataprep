@@ -210,11 +210,11 @@ secondix = make(["2000-01-15", "2000-03-15", "2000-04-15", "2000-09-15", "2000-1
 second = make(["2000-02-20", "2000-02-25", "2000-03-15 00:00:01", "2000-04-01"], "two")
 
 adapt_results = [
-    (firstix, first, pd.Series([1, 3, 3, 5]), dict(norm=True, ffill=True)),  # 1+ nTrue fTrue
-    (firstix, first, pd.Series([1, 3, np.nan, 5]), dict(norm=True, ffill=False)),  # 1+ nTrue fFalse
+    (firstix, first, pd.Series([1, 3, 3, 5]), dict(off= 1, norm=True, ffill=True)),  # 1+ nTrue fTrue
+    (firstix, first, pd.Series([1, 3, np.nan, 5]), dict(off= 1, norm=True, ffill=False)),  # 1+ nTrue fFalse
 
-    (secondix, second, pd.Series([np.nan, 1, 3, 3, 3]), dict(norm=False, ffill=True)),  # 1+ nFalse fTrue
-    (secondix, second, pd.Series([np.nan, 1, 3, np.nan, np.nan]), dict(norm=False, ffill=False)),  # 1+ nFalse fFalse
+    (secondix, second, pd.Series([np.nan, 1, 3, 3, 3]), dict(off= 1, norm=False, ffill=True)),  # 1+ nFalse fTrue
+    (secondix, second, pd.Series([np.nan, 1, 3, np.nan, np.nan]), dict(off= 1, norm=False, ffill=False)),  # 1+ nFalse fFalse
 
     (firstix, first, pd.Series([3, 4, 4, 6]), dict(off=0, norm=True, ffill=True)),  # 0 nTrue fTrue
     (firstix, first, pd.Series([3, 4, np.nan, 6]), dict(off=0, norm=True, ffill=False)),  # 0 nTrue fFalse
@@ -301,22 +301,22 @@ match_data = [
     (firstset, firstixset, dp.from_pandas({
         "A": pd.Series([1, 3, 3, 5], index= firstix, dtype= float),
         "B": pd.Series([1, 3, 3, 5], index= firstix, dtype= float)*2
-    }), dict(norm=True, ffill=True)),  # 1+ nTrue fTrue
+    }), dict(off= 1, norm=True, ffill=True)),  # 1+ nTrue fTrue
 
     (firstset, firstixset, dp.from_pandas({
         "A": pd.Series([1, 3, np.nan, 5], index= firstix),
         "B": pd.Series([1, 3, np.nan, 5], index= firstix)*2
-    }), dict(norm=True, ffill=False)),  # 1+ nTrue fFalse
+    }), dict(off= 1, norm=True, ffill=False)),  # 1+ nTrue fFalse
 
     (secondset, secondixset, dp.from_pandas({
         "A": pd.Series([np.nan, 1, 3, 3, 3], index= secondix),
         "B": pd.Series([np.nan, 1, 3, 3, 3], index= secondix)*2
-    }), dict(norm=False, ffill=True)),  # 1+ nFalse fTrue
+    }), dict(off= 1, norm=False, ffill=True)),  # 1+ nFalse fTrue
 
     (secondset, secondixset, dp.from_pandas({
         "A": pd.Series([np.nan, 1, 3, np.nan, np.nan], index= secondix),
         "B": pd.Series([np.nan, 1, 3, np.nan, np.nan], index= secondix)*2
-    }), dict(norm=False, ffill=False)),  # 1+ nFalse fFalse
+    }), dict(off= 1, norm=False, ffill=False)),  # 1+ nFalse fFalse
 
     (firstset, firstixset, dp.from_pandas({
         "A": pd.Series([3, 4, 4, 6], index= firstix, dtype= float),
