@@ -354,6 +354,25 @@ class DataSet(_DataBase):
     def missing_indexes(self, schedule, freq= None):
         return self._sessions(u.missing_indexes, schedule, freq)
 
+    def ffill_sessions(self, schedule, freq= None):
+        """
+        naive ffill of all sessions followed by
+         bfill in case the start of the first session is missing
+        """
+        if pd.isna(self.timezone):
+            assert schedule.apply(lambda c: c.dt.tz).isna().all(), "Cannot use a tz aware schedule on tz naive data"
+
+        if freq is None: freq = self.frequency
+        ic = IndexCalculator(schedule, freq)
+        ranges = self.index_ranges
+
+        results = {}
+        for s, d in self:
+            rs = ranges.loc[s]
+            results[s] = u.ffill_sessions(d, ic.timex(frm=rs[0], to=rs[1]))
+
+        return DataSet(results)
+
     def __repr__(self):
         syms = self.symbols[:3]
         dfs = {}
