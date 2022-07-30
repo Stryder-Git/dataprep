@@ -130,9 +130,11 @@ def missing_indexes(dfix, ix, sessions):  # keeping `sessions` so the signature 
     redfix = dfix.to_series().reindex(ix)
     return redfix.index[redfix.isna()]
 
+@delayed
+def ffill_sessions(df, ix):
+    return df.reindex(ix).ffill().bfill()
 
-#
-#
+
 def reset_pck(pck):
     from sys import modules
     for k in modules.copy():
