@@ -292,25 +292,26 @@ class DataSet(_DataBase):
         to use absolute values. E.g.: use reported revenue and not yearly revenue growth.
         Although, a warning will be raised if something is lost.
 
-            If there are two data points of `adapt` between two indexes of `ix`, only the last data point
-            will be kept:
-                import research_environment as renv
+            If there are two data points of `data` between two indexes to be matched with,
+             only the last data point will be kept:
+
+                import dataprep as dp
                 import pandas as pd
 
                 ix = pd.DatetimeIndex(["2000-01-01", "2000-06-01"])
                 data = pd.Series({"2000-01-05": 1, "2000-03-05": 2})
                 data.index = pd.to_datetime(data.index)
 
-                renv.utils.adapt(ix, data)
+                dp.utils.adapt(data, ix).compute()
                 >>
                  2000-01-01 NaN
                  2000-06-01 2
 
         Parameters
         ----------
-        off : int, default 1
+        off : int, default 0
             how many times to add `day` to the data's index before matching
-        norm : bool, default True
+        norm : bool, default False
             Normalize data's index to midnight before adapting.
         ffill : bool, default True
             fill all values for `ix`, else keep only values that are new.

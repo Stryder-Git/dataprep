@@ -223,58 +223,14 @@ adapt_results = [
     (secondix, second, pd.Series([np.nan, 1, 3, np.nan, np.nan]), dict(off=0, norm=False, ffill=False)) # 0 nFalse fFalse
 ]
 
-"""
-what are the possiblities regarding data index relationship
-
-    whole:
-        start - before/after
-        end - before/after
-            = 4
-
-            before/before
-            before/after
-            after/before
-            after/after
-
-    each index:
-
-        new info on index
-        new info between current and previous index
-        neither
-            = 3
-
-    data per index:
-        between current and previous
-            zero new piece of info (poi) 
-            one poi
-            2+ pois
-
-
-
-what are kwarg permutations
-
-    off - 0/ 1+
-    norm   - True/False
-    ffill  - True/False
-        = 8
-
-    0 nTrue fTrue
-    0 nTrue fFalse
-    0 nFalse fTrue
-    0 nFalse fFalse
-    1+ nTrue fTrue
-    1+ nTrue fFalse
-    1+ nFalse fTrue
-    1+ nFalse fFalse
-
-
-
-"""
-
+defaults = dict(off=0, day= pd.Timedelta("1D"), norm=False, ffill= False, fromix= False)
 @pytest.mark.parametrize("index, data, result, kw", adapt_results)
 def test_adpat(index, data, result, kw):
     result.index = index
-    calced = utils.adapt(data, index, **kw).compute()
+
+    kwargs = defaults.copy()
+    kwargs.update(kw)
+    calced = utils.adapt(data, index, **kwargs).compute()
 
     equals = result.eq(calced.fillna(-1), fill_value=-1).all()
     if kw.get("fromix", False) is True:
@@ -282,14 +238,6 @@ def test_adpat(index, data, result, kw):
 
     assert equals, str(result) + "\n" + str(calced)
 
-
-"""
-
-Two datasets with each two dataframes
-
-
-    
-"""
 
 firstixset = dp.from_pandas({"A": firstix, "B": firstix})
 firstset = dp.from_pandas({"A": first, "B": first*2,})

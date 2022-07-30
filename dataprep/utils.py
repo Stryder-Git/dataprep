@@ -12,7 +12,7 @@ import warnings
 #                            calendar= _nyse.regular_holidays)
 
 @delayed
-def adapt(data, ix, off=0, day= pd.Timedelta("1D"), norm=False, ffill= False, fromix= False):
+def adapt(data, ix, off, day, norm, ffill, fromix):
 
     assert ix.is_monotonic_increasing and not ix.duplicated().any()
     ndim = data.ndim
