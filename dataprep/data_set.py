@@ -32,7 +32,12 @@ def from_pandas(data, name= None, **kwargs):
     if isinstance(d, pd.DataFrame):
         maker = lambda x: dd.from_pandas(x, **kwargs)
     elif isinstance(d, (pd.Series, pd.Index)):
-        maker = lambda x: dd.from_pandas(x.to_frame(name=name), **kwargs)
+        if name is None:
+            n = "data"
+            maker = lambda x: dd.from_pandas(
+                x.to_frame(name=n if x.name is None else x.name), **kwargs)
+        else:
+            maker = lambda x: dd.from_pandas(x.to_frame(name=name), **kwargs)
     else:
         raise ValueError("Needs to be pandas object")
 
@@ -286,35 +291,41 @@ class DataSet(_DataBase):
         Will match each dataframe in self with the index of the dataframe in data that shares the symbol.
         The data will be matched to the equal or next larger index.
 
-        CAVEAT:
+        IMPORTANT CAVEAT:
 
         This operation will *not* necessarily keep all data points. Therefore it is important
         to use absolute values. E.g.: use reported revenue and not yearly revenue growth.
-        Although, a warning will be raised if something is lost.
 
-            If there are two data points of `data` between two indexes to be matched with,
-             only the last data point will be kept:
-
+            If there are two data points of the data between two indexes to be matched with or
+             if there are duplicate indexes in the data, only the last data point will be kept:
+             ```
                 import dataprep as dp
                 import pandas as pd
 
-                ix = pd.DatetimeIndex(["2000-01-01", "2000-06-01"])
                 data = pd.Series({"2000-01-05": 1, "2000-03-05": 2})
                 data.index = pd.to_datetime(data.index)
+                ix = pd.DatetimeIndex(["2000-01-01", "2000-06-01"])
 
-                dp.utils.adapt(data, ix).compute()
+                data = dp.from_pandas(dict(A= data))
+                ix = dp.from_pandas(dict(A= ix))
+
+                data.match(ix).compute()
                 >>
-                 2000-01-01 NaN
-                 2000-06-01 2
+                              data
+                A 2000-01-01   NaN
+                  2000-06-01   2.0
+             ```
 
         Parameters
         ----------
         off : int, default 0
             how many times to add `day` to the data's index before matching
+        day: pd.Timedelta, DateOffset, or BusinessDay, default: pd.Timedelta("1D")
+           This will be multiplied with `off` and added to the DatetimeIndex of the data
         norm : bool, default False
             Normalize data's index to midnight before adapting.
         ffill : bool, default True
-            fill all values for `ix`, else keep only values that are new.
+            ffill data, otherwise keep only values that are new.
         fromix : bool, default False
             return as DataFrame containing a "fromix" column holding the indexes of adapt
             that the values are from, ffill also applies to this.
@@ -322,16 +333,13 @@ class DataSet(_DataBase):
 
         Returns
         -------
-        pandas.Series if not fromix (default) else pandas.DataFrame
-
-
+        dp.DataSet
 
         """
         assert self.symbols.isin(data.symbols).all()
         data = data.data
-        return self.__class__({s: u.adapt(d, data[s].index, off= off, day= day,
-                                          norm= norm, ffill= ffill, fromix= fromix)
-                               for s, d in self})
+        return DataSet({s: u.adapt(d, data[s].index, off, day,
+                                   norm, ffill, fromix) for s, d in self})
 
     def join(self, with_symbols= True):
         if with_symbols:

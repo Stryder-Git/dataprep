@@ -29,10 +29,10 @@ series = dict(A = pd.Series(range(5), index= ix),
 seriesn = {k: pd.Series(s, name= "name") for k, s in series.items()}
 
 @pytest.mark.parametrize("data, name, result", [
-    (index, None, dict(A= 0, B= 0)),
+    (index, None, dict(A= "data", B= "data")),
     (index, "dtindex", dict(A= "dtindex", B= "dtindex")),
 
-    (series, None, dict(A= 0, B= 0)),
+    (series, None, dict(A= "data", B= "data")),
     (series, "other", dict(A="other", B="other")),
 
     (seriesn, None, dict(A= "name", B= "name")),

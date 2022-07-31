@@ -24,19 +24,13 @@ def adapt(data, ix, off, day, norm, ffill, fromix):
     if norm: data.index = data.index.normalize()
     if off: data.index += off * day
 
-    duplicated = data.index.duplicated(keep="last")
-    warn = duplicated.any()
-    if warn: data = data[~data.index.duplicated(keep="last")]
-
+    data = data[~data.index.duplicated(keep="last")]
     data = data.reindex(ix.union(data.index)).ffill()
     if ffill: data = data.loc[ix]
     else:
         data = data.loc[ix]
         notnew = data.fromix.eq(data.fromix.shift(1))
         data.loc[notnew] = np.nan
-
-    if warn or not orig_index.isin(data.fromix).all():
-        warnings.warn("Some values are lost")
 
     if fromix: return data
     elif ndim == 1: return data.iloc[:, 0]
