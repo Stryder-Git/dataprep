@@ -1,27 +1,11 @@
-# This package provides a three dimensional data structure, building on dask dataframes and delayed objects.
+## This package provides a three dimensional data structure, building on dask dataframes and delayed objects.
 The main class is `DataSet` and it should be used for embarrassingly parallel computations on a large number of dataframes. Rather than a full replacement for the dask api, this is intended to be an extension, with particular focus on financial timeseries data.
-
-
-```python
-import sys
-```
-
-
-```python
-sys.path.append("..")
-```
-
 
 ```python
 import os
 import pandas as pd
 import dataprep as dp
 import pandas_market_calendars as mcal
-```
-
-
-```python
-pd.options.display.notebook_repr_html = False
 ```
 
 ## Read Data and Basic Properties
