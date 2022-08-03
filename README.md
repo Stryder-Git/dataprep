@@ -2,6 +2,8 @@
 The main class is `DataSet` and it should be used for embarrassingly parallel computations on a large number of dataframes. Rather than a full replacement for the dask api, this is intended to be an extension, with particular focus on financial timeseries data.
 
 ```python
+# The following code is based on examples\examples.ipynb
+
 import os
 import pandas as pd
 import dataprep as dp
