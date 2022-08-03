@@ -228,10 +228,6 @@ filled.shapes
 
     True
     
-
-
-
-
             0  1
     AAPL  320  5
     AMZN  320  5
